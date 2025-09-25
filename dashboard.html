@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>ReqRes DevTools Lite v3</title>
+    <link rel="stylesheet" href="dashboard.css">
+  </head>
+  <body>
+    <header class="toolbar">
+      <div class="left">
+        <span class="lbl">Mode:</span>
+        <label><input type="checkbox" class="mode" value="xhr" checked> Fetch/XHR</label>
+        <label><input type="checkbox" class="mode" value="js" checked> JS</label>
+        <label><input type="checkbox" class="mode" value="css" checked> CSS</label>
+        <label><input type="checkbox" class="mode" value="img" checked> Img</label>
+        <label><input type="checkbox" class="mode" value="media" checked> Media</label>
+        <label><input type="checkbox" class="mode" value="font" checked> Font</label>
+        <label><input type="checkbox" class="mode" value="doc" checked> Dokumen</label>
+        <label><input type="checkbox" class="mode" value="ws" checked> WS</label>
+        <label><input type="checkbox" class="mode" value="wasm" checked> Wasm</label>
+        <label><input type="checkbox" class="mode" value="manifest" checked> Manifes</label>
+        <label><input type="checkbox" class="mode" value="other" checked> Lainnya</label>
+        <label><input type="checkbox" id="hideDataUrl"> Sembunyikan URL data</label>
+      </div>
+      <div class="right">
+        <input id="filterText" type="text" placeholder="Filter (nama/url/header/body)...">
+        <button id="btnSelectMode" class="alt">Select Mode: OFF</button>
+        <button id="btnSelectAll" disabled>Pilih semua (filtered)</button>
+        <button id="btnClearSelection" disabled>Clear</button>
+        <span class="muted" id="selCount">0 dipilih</span>
+        <button id="btnExportSelectedZIP" disabled>Export ZIP (Readable)</button>
+        <button id="btnClear">Clear Log</button>
+      </div>
+    </header>
+
+    <section id="split">
+      <aside id="leftPane">
+        <table id="grid">
+          <thead>
+            <tr id="gridHeader">
+              <th class="selcol hidden"><input id="masterSel" type="checkbox"></th>
+              <th>Nama</th><th>Metode</th><th>Status</th><th>Tipe</th><th>Cat</th><th>Ukuran</th><th>Waktu (ms)</th>
+            </tr>
+          </thead>
+          <tbody id="gridBody"></tbody>
+        </table>
+      </aside>
+
+      <div id="divider" title="Drag to resize"></div>
+
+      <section id="rightPane">
+        <div class="detail-tabs">
+          <button data-tab="headers" class="active">Header</button>
+          <button data-tab="payload">Payload</button>
+          <button data-tab="preview">Pratinjau</button>
+          <button data-tab="response">Respons</button>
+        </div>
+
+        <div id="tab-headers" class="tab active"><pre id="headersPre"></pre></div>
+        <div id="tab-payload" class="tab"><pre id="payloadPre"></pre></div>
+        <div id="tab-preview" class="tab"><pre id="previewPre"></pre></div>
+        <div id="tab-response" class="tab">
+          <div class="row"><button id="btnCopyResBody">Copy</button><button id="btnSaveResBody">Save</button><span id="resBodyInfo" class="muted"></span></div>
+          <pre id="responsePre"></pre>
+        </div>
+      </section>
+    </section>
+
+    <footer id="statusBar"><span id="attachInfo" class="muted">Idle</span></footer>
+
+    <script type="module" src="dashboard.js"></script>
+  </body>
+</html>

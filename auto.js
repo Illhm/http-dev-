@@ -1,0 +1,1 @@
+(async()=>{try{const[tab]=await chrome.tabs.query({active:true,currentWindow:true});if(tab&&tab.id){await chrome.runtime.sendMessage({__RRDBG:true,cmd:'start',payload:{tabId:tab.id}});}await chrome.runtime.sendMessage({__RRDBG:true,cmd:'openDash'});}finally{window.close();}})();

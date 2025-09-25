@@ -1,0 +1,27 @@
+:root{--bg:#0b0e14;--muted:#9aa3b2;--fg:#e6e6e6;--accent:#4cc3ff;--rowHover:#121826;--border:#1b2130;--left:42%}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:12.5px/1.4 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;overflow:hidden}
+.toolbar{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border);background:#0f1421;position:sticky;top:0;z-index:10;flex-wrap:wrap}
+.toolbar input,.toolbar select,.toolbar button{background:#0f1421;color:var(--fg);border:1px solid var(--border);padding:4px 8px;border-radius:6px}
+.toolbar .lbl{margin-right:4px;color:var(--muted)}
+.toolbar button:hover{border-color:var(--accent)}
+.toolbar .alt{border-color:#2a3450}
+.muted{color:var(--muted)}
+#split{display:grid;grid-template-columns: var(--left) 6px 1fr;grid-template-rows: calc(100vh - 92px);height: calc(100vh - 92px)}
+#leftPane{overflow:auto;border-right:1px solid var(--border)}
+#rightPane{overflow:auto;padding:8px}
+#divider{cursor:col-resize;background:#0f1421;border-left:1px solid var(--border);border-right:1px solid #0a0f1e}
+#grid{width:100%;border-collapse:collapse}
+#grid thead th{position:sticky;top:0;background:#0f1421;text-align:left;padding:6px;border-bottom:1px solid var(--border);z-index:1}
+#grid tbody td{padding:6px;border-bottom:1px solid var(--border);vertical-align:middle;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;max-width:0}
+#grid tbody tr:hover{background:var(--rowHover);cursor:pointer}
+#grid .selcol{width:28px;text-align:center}
+.hidden{display:none}
+.detail-tabs{display:flex;gap:8px;margin-bottom:8px;position:sticky;top:0;background:var(--bg);padding-bottom:6px}
+.detail-tabs button{padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:#0f1421;color:var(--fg)}
+.detail-tabs button.active{border-color:var(--accent)}
+.tab{display:none}.tab.active{display:block}
+pre{margin:0;padding:8px;background:#0f1421;border:1px solid var(--border);border-radius:6px;max-height:calc(100vh - 160px);overflow:auto;white-space:pre-wrap;word-break:break-word}
+.row{display:flex;gap:8px;align-items:center;margin:8px 0}
+#statusBar{height:20px;border-top:1px solid var(--border);display:flex;align-items:center;padding:0 8px;background:#0f1421}

@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "ReqRes DevTools Lite (Auto) v3",
+  "version": "1.5.0",
+  "description": "Auto-capture. Anti-refresh log. Mode filter XHR/JS/CSS/Img/etc. Export ZIP (Readable).",
+  "minimum_chrome_version": "105",
+  "permissions": [
+    "debugger",
+    "downloads",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "bg.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Start capture & open dashboard",
+    "default_popup": "auto.html",
+    "default_icon": {
+      "16": "icons/icon16.png"
+    }
+  }
+}
