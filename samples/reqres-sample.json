@@ -1,0 +1,44 @@
+[
+  {
+    "id": "req-1",
+    "seq": 1,
+    "url": "https://example.com/api/data",
+    "method": "GET",
+    "status": 200,
+    "statusText": "OK",
+    "mimeType": "application/json",
+    "resourceType": "XHR",
+    "requestHeaders": [
+      {"name": "Accept", "value": "application/json"}
+    ],
+    "responseHeaders": [
+      {"name": "Content-Type", "value": "application/json"}
+    ],
+    "requestBodyText": "",
+    "responseBodyRaw": "{\"message\":\"hello\"}",
+    "responseBodyEncoding": "utf-8",
+    "bodySize": 24,
+    "startedDateTime": "2024-01-01T00:00:00.000Z",
+    "time": 0.123
+  },
+  {
+    "id": "req-2",
+    "seq": 2,
+    "url": "https://example.com/assets/logo.png",
+    "method": "GET",
+    "status": 200,
+    "statusText": "OK",
+    "mimeType": "image/png",
+    "resourceType": "Image",
+    "requestHeaders": [],
+    "responseHeaders": [
+      {"name": "Content-Type", "value": "image/png"}
+    ],
+    "requestBodyText": "",
+    "responseBodyRaw": "iVBORw0KGgoAAAANSUhEUgAAAAUA",
+    "responseBodyEncoding": "base64",
+    "bodySize": 20,
+    "startedDateTime": "2024-01-01T00:00:01.000Z",
+    "time": 0.456
+  }
+]
