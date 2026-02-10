@@ -20,6 +20,7 @@ const headersPre = $("#headersPre");const payloadPre = $("#payloadPre");const pr
 const divider = document.getElementById("divider");let startX = 0, startLeft = 0;divider.addEventListener("dblclick", () => setLeftPercent(42));divider.addEventListener("mousedown", (e) => {startX = e.clientX;startLeft = getLeftPercent();const move = (ev)=>{const dx = ev.clientX - startX;const pct = Math.min(80, Math.max(20, startLeft + (dx/window.innerWidth)*100));setLeftPercent(pct);};const up = ()=>{ window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };window.addEventListener("mousemove", move);window.addEventListener("mouseup", up);});function getLeftPercent(){ const s = getComputedStyle(document.documentElement).getPropertyValue('--left').trim(); return parseFloat(s.replace('%','')) || 42; }function setLeftPercent(p){ document.documentElement.style.setProperty('--left', p+'%'); }
 
 let rows = [];let current = null;let selectMode = false;let selectedIds = new Set();
+let targetTabId = null;
 
 function humanSize(bytes){ if(bytes==null||isNaN(bytes))return "-"; const u=["B","KB","MB","GB"]; let i=0,n=Math.max(0,bytes);while(n>=1024&&i<u.length-1){n/=1024;i++;}return `${n.toFixed(1)} ${u[i]}`;}
 function pretty(obj){ try{ if(typeof obj==="string") return JSON.stringify(JSON.parse(obj),null,2); return JSON.stringify(obj,null,2);}catch{return String(obj);}}
@@ -57,9 +58,41 @@ function matchesFilters(r){
   if (hideDataUrl.checked && r.url.startsWith('data:')) return false;
   const enabledKinds = new Set(modeCbs.filter(cb=>cb.checked).map(cb=>cb.value));
   if (!enabledKinds.has(guessKind(r))) return false;
+
   if (!ft) return true;
-  const blob = [r.url, r.mimeType||"", r.method, String(r.status), (r.requestBodyText||""), (r.responseBodyRaw||"")].join(" ").toLowerCase();
-  return blob.includes(ft);
+
+  const tokens = ft.split(/\s+/);
+  for (const token of tokens) {
+    if (token.startsWith("method:")) {
+      if ((r.method||"").toLowerCase() !== token.substring(7)) return false;
+    } else if (token.startsWith("status:")) {
+      if (String(r.status) !== token.substring(7)) return false;
+    } else if (token.startsWith("domain:")) {
+      try {
+        if (!new URL(r.url).hostname.includes(token.substring(7))) return false;
+      } catch(e) { return false; }
+    } else if (token.startsWith("type:")) {
+      if (guessKind(r) !== token.substring(5)) return false;
+    } else {
+      const blob = [r.url, r.mimeType||"", r.method, String(r.status), (r.requestBodyText||""), (r.responseBodyRaw||"")].join(" ").toLowerCase();
+      if (!blob.includes(token)) return false;
+    }
+  }
+  return true;
+}
+
+function copyCURL(r) {
+  let cmd = `curl '${r.url.replace(/'/g, "'\\''")}' \\\n`;
+  cmd += `  -X '${r.method}' \\\n`;
+  for (const h of r.requestHeaders || []) {
+      if (h.name.toLowerCase() === 'content-length') continue;
+      cmd += `  -H '${h.name.replace(/'/g, "'\\''")}: ${h.value.replace(/'/g, "'\\''")}' \\\n`;
+  }
+  if (r.requestBodyText) {
+      cmd += `  --data-raw '${r.requestBodyText.replace(/'/g, "'\\''")}' \\\n`;
+  }
+  cmd += `  --compressed`;
+  navigator.clipboard.writeText(cmd).catch(()=>{});
 }
 
 function setActiveTab(name){
@@ -135,6 +168,80 @@ function showDetail(id){
   responsePre.textContent = (r.responseBodyEncoding==="base64" ? `(base64) ${ (r.responseBodyRaw||"").length } chars` : (r.responseBodyRaw || "(no body)"));
   resBodyInfo.textContent = r.responseBodyRaw ? `${r.mimeType||"unknown"} | ${r.responseBodyEncoding||"utf-8"} | ${(r.responseBodyRaw||"").length} chars` : "";
 }
+
+const btnReplay = $("#btnReplay");
+const btnEditResend = $("#btnEditResend");
+const btnCopyCurl = $("#btnCopyCurl");
+
+const editModal = document.getElementById("editModal");
+const editMethod = document.getElementById("editMethod");
+const editUrl = document.getElementById("editUrl");
+const editHeaders = document.getElementById("editHeaders");
+const editBody = document.getElementById("editBody");
+const btnSendEdit = document.getElementById("btnSendEdit");
+
+btnCopyCurl.addEventListener("click", () => { if(current) copyCURL(current); });
+btnReplay.addEventListener("click", () => { if(current) replay(current); });
+btnEditResend.addEventListener("click", () => { if(current) openEdit(current); });
+
+function openEdit(r){
+  editMethod.value = r.method;
+  editUrl.value = r.url;
+  const h = {}; for(const x of r.requestHeaders||[]) h[x.name] = x.value;
+  editHeaders.value = JSON.stringify(h, null, 2);
+  editBody.value = r.requestBodyText || "";
+  editModal.showModal();
+}
+
+btnSendEdit.addEventListener("click", async () => {
+  const method = editMethod.value;
+  const url = editUrl.value;
+  let headers = {};
+  try { headers = JSON.parse(editHeaders.value); } catch(e){ alert("Invalid Headers JSON"); return; }
+  const body = editBody.value;
+
+  const finalHeaders = {};
+  for(const [k,v] of Object.entries(headers)) {
+     if (['cookie','content-length','host','connection','origin','referer'].includes(k.toLowerCase())) continue;
+     finalHeaders[k] = v;
+  }
+
+  if (targetTabId) {
+      try {
+        await chrome.scripting.executeScript({
+            target: { tabId: targetTabId },
+            func: (m, u, h, b) => {
+                fetch(u, { method:m, headers:h, body: (m=='GET'||m=='HEAD')?undefined:b }).catch(console.error);
+            },
+            args: [method, url, finalHeaders, body]
+        });
+        editModal.close();
+      } catch(e) { alert("Failed: " + e.message); }
+  } else {
+      alert("Not capturing.");
+  }
+});
+
+async function replay(r) {
+  if (!targetTabId) { alert("Not capturing."); return; }
+  const headers = {};
+  for(const h of r.requestHeaders||[]) {
+      const n = h.name.toLowerCase();
+      if (['cookie','content-length','host','connection','origin','referer'].includes(n)) continue;
+      headers[h.name] = h.value;
+  }
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: targetTabId },
+      func: (method, url, headers, body) => {
+        fetch(url, { method, headers, body: (method=='GET'||method=='HEAD')?undefined:body }).catch(console.error);
+      },
+      args: [r.method, r.url, headers, r.requestBodyText]
+    });
+  } catch(e){ alert("Replay failed: " + e.message); }
+}
+
 
 btnClear.addEventListener("click", async () => { rows = []; selectedIds.clear(); render(); await chrome.runtime.sendMessage({ __RRDBG: true, cmd: 'clear' }); });
 btnCopyResBody.addEventListener("click", () => { if (!current) return; navigator.clipboard.writeText(typeof current.responseBodyRaw === 'string' ? current.responseBodyRaw : String(current.responseBodyRaw)).catch(()=>{}); });
@@ -272,14 +379,15 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (!msg || !msg.__RRSTREAM) return;
   const { event, data } = msg;
   if (event === 'entry') { const r = data.record; rows.push(r); render(); }
-  else if (event === 'started') { attachInfo.textContent = `Capturing on tab ${data.tabId}`; }
-  else if (event === 'stopped') { attachInfo.textContent = "Idle"; }
+  else if (event === 'started') { targetTabId = data.tabId; attachInfo.textContent = `Capturing on tab ${data.tabId}`; }
+  else if (event === 'stopped') { targetTabId = null; attachInfo.textContent = "Idle"; }
   else if (event === 'cleared') { rows = []; render(); }
 });
 
 // init snapshot
 (async function init(){
   const st = await chrome.runtime.sendMessage({ __RRDBG: true, cmd: 'getAll' });
+  targetTabId = st.attached ? st.tabId : null;
   attachInfo.textContent = st.attached ? `Capturing on tab ${st.tabId}` : "Idle (tap icon to start)";
   rows = (st.entries || []);
   render();
