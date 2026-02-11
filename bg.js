@@ -1,5 +1,5 @@
 // MV3 background — anti-refresh log
-const state = { attached:false, attachedTabs:new Set(), requests:new Map(), nextSeq:0, throttle:'none', cacheDisabled:false };
+const state = { attached:false, attachedTabs:new Set(), requests:new Map(), nextSeq:0, throttle:'none', cacheDisabled:false, attaching:new Set() };
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || !msg.__RRDBG) return;
@@ -32,16 +32,25 @@ async function startCapture(tabId){
   try {
     if (!tabId) return false;
     if (state.attachedTabs.has(tabId)) return true;
-    await chrome.debugger.attach({ tabId }, "1.3");
-    state.attachedTabs.add(tabId);
-    state.attached = true;
-    await chrome.debugger.sendCommand({ tabId }, "Network.enable", { includeExtraInfo:true, maxPostDataSize:-1 });
-    await chrome.debugger.sendCommand({ tabId }, "Page.enable");
-    await chrome.debugger.sendCommand({ tabId }, "Runtime.enable");
-    await applyCacheDisabled(tabId); await applyThrottle(tabId);
-    subscribeDebugger();
-    broadcast('started', { tabId });
-    return true;
+    if (state.attaching.has(tabId)) return true; // Already attaching
+    state.attaching.add(tabId);
+    try {
+      await chrome.debugger.attach({ tabId }, "1.3");
+      state.attachedTabs.add(tabId);
+      state.attached = true;
+      // Immediately enable Network to catch early requests
+      const p1 = chrome.debugger.sendCommand({ tabId }, "Network.enable", { includeExtraInfo:true, maxPostDataSize:-1 });
+      const p2 = chrome.debugger.sendCommand({ tabId }, "Page.enable");
+      const p3 = chrome.debugger.sendCommand({ tabId }, "Runtime.enable");
+      await Promise.all([p1, p2, p3]);
+
+      await applyCacheDisabled(tabId); await applyThrottle(tabId);
+      subscribeDebugger();
+      broadcast('started', { tabId });
+      return true;
+    } finally {
+      state.attaching.delete(tabId);
+    }
   } catch(e){ console.error('attach fail', e); return false; }
 }
 
@@ -149,6 +158,23 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
     if (!state.attached) return;
     if (details.frameId === 0 && details.url && (details.url.startsWith('http://') || details.url.startsWith('https://'))) {
       startCapture(details.tabId);
+    }
+  });
+}
+
+// Auto-attach to new tabs opened from an attached tab
+if (chrome.webNavigation && chrome.webNavigation.onCreatedNavigationTarget) {
+  chrome.webNavigation.onCreatedNavigationTarget.addListener((details) => {
+    if (state.attached && state.attachedTabs.has(details.sourceTabId)) {
+      startCapture(details.tabId);
+    }
+  });
+}
+
+if (chrome.tabs && chrome.tabs.onCreated) {
+  chrome.tabs.onCreated.addListener((tab) => {
+    if (state.attached && tab.openerTabId && state.attachedTabs.has(tab.openerTabId)) {
+      startCapture(tab.id);
     }
   });
 }
