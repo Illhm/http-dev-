@@ -146,7 +146,8 @@ function mergeHeaders(cur, add){ const map=new Map(); for(const h of (cur||[])) 
 
 if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
   chrome.webNavigation.onBeforeNavigate.addListener((details) => {
-    if (details.frameId === 0 && details.url && details.url.includes('otakudesu.best')) {
+    if (!state.attached) return;
+    if (details.frameId === 0 && details.url && (details.url.startsWith('http://') || details.url.startsWith('https://'))) {
       startCapture(details.tabId);
     }
   });
