@@ -77,6 +77,8 @@ async function onEvent(source, method, params){
         r.requestHeaders = headersFrom(params.request.headers); r.requestBodyText = params.request.postData || '';
         r._t0 = params.timestamp; r.startedDateTime = new Date(Math.round(params.wallTime*1000)).toISOString();
         r.resourceType = params.type || null;
+        r.status = 'pending';
+        broadcast('entry', { id: r.id, record: r });
       } break;
       case 'Network.requestWillBeSentExtraInfo': {
         const r = ensure(params.requestId); r.requestHeaders = mergeHeaders(r.requestHeaders, params.headers);
@@ -85,6 +87,10 @@ async function onEvent(source, method, params){
         const r = ensure(params.requestId);
         r.mimeType = params.response.mimeType; r.status = params.response.status; r.statusText = params.response.statusText;
         r.responseHeaders = headersFrom(params.response.headers); r.timing = params.response.timing || null; r.resourceType = r.resourceType || params.type || null;
+        r.protocol = params.response.protocol || '';
+        r.remoteIPAddress = params.response.remoteIPAddress || '';
+        r.remotePort = params.response.remotePort || 0;
+        broadcast('entry', { id: r.id, record: r });
       } break;
       case 'Network.responseReceivedExtraInfo': {
         const r = ensure(params.requestId); r.responseHeaders = mergeHeaders(r.responseHeaders, params.headers);
