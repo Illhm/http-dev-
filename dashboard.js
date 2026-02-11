@@ -206,11 +206,12 @@ btnSaveResBody.addEventListener("click", () => {
   const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`response${ext}`; a.click(); URL.revokeObjectURL(url);
 });
 
-async function executeReplay(method, url, headers, body){
-  if (!currentTabId) { alert("Capture not active or tab ID unknown."); return; }
+async function executeReplay(method, url, headers, body, tabId){
+  const targetId = tabId || currentTabId;
+  if (!targetId) { alert("Capture not active or tab ID unknown."); return; }
   try {
     await chrome.scripting.executeScript({
-      target: { tabId: currentTabId },
+      target: { tabId: targetId },
       func: (m, u, h, b) => {
         const opts = { method: m, headers: {} };
         (h||[]).forEach(x => opts.headers[x.name] = x.value);
@@ -225,7 +226,7 @@ async function executeReplay(method, url, headers, body){
 
 btnReplay.addEventListener("click", () => {
   if (!current) return;
-  executeReplay(current.method, current.url, current.requestHeaders, current.requestBodyText);
+  executeReplay(current.method, current.url, current.requestHeaders, current.requestBodyText, current.tabId);
 });
 btnEditResend.addEventListener("click", () => {
   if (!current) return;
@@ -235,7 +236,7 @@ btnEditResend.addEventListener("click", () => {
   if (['POST','PUT','PATCH'].includes(m.toUpperCase())) {
     b = prompt("Body:", b); if(b===null) return;
   }
-  executeReplay(m, u, current.requestHeaders, b);
+  executeReplay(m, u, current.requestHeaders, b, current.tabId);
 });
 function b64toBytes(b64){ const bin = atob(b64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i); return u8; }
 function guessExt(mime, enc){ const m=(mime||'').toLowerCase(); if(m.includes('json'))return'.json'; if(m==='text/html')return'.html'; if(m.includes('xml'))return'.xml'; if(m==='text/plain')return'.txt'; if(m.startsWith('image/'))return'.'+m.split('/')[1].split(';')[0]; if(m.startsWith('video/'))return'.'+m.split('/')[1].split(';')[0]; if(m.startsWith('audio/'))return'.'+m.split('/')[1].split(';')[0]; if(m==='application/wasm')return'.wasm'; return enc==='base64'?'.bin':'.txt'; }
