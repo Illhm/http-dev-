@@ -19,7 +19,7 @@ const headersPre = $("#headersPre");const payloadPre = $("#payloadPre");const pr
 // Resizer
 const divider = document.getElementById("divider");let startX = 0, startLeft = 0;divider.addEventListener("dblclick", () => setLeftPercent(42));divider.addEventListener("mousedown", (e) => {startX = e.clientX;startLeft = getLeftPercent();const move = (ev)=>{const dx = ev.clientX - startX;const pct = Math.min(80, Math.max(20, startLeft + (dx/window.innerWidth)*100));setLeftPercent(pct);};const up = ()=>{ window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };window.addEventListener("mousemove", move);window.addEventListener("mouseup", up);});function getLeftPercent(){ const s = getComputedStyle(document.documentElement).getPropertyValue('--left').trim(); return parseFloat(s.replace('%','')) || 42; }function setLeftPercent(p){ document.documentElement.style.setProperty('--left', p+'%'); }
 
-let rows = [];let current = null;let selectMode = false;let selectedIds = new Set();
+let rows = [];let current = null;let selectMode = false;let selectedIds = new Set(); // Stores 'seq'
 let targetTabId = null;
 
 function humanSize(bytes){ if(bytes==null||isNaN(bytes))return "-"; const u=["B","KB","MB","GB"]; let i=0,n=Math.max(0,bytes);while(n>=1024&&i<u.length-1){n/=1024;i++;}return `${n.toFixed(1)} ${u[i]}`;}
@@ -118,7 +118,7 @@ function toggleSelectMode(){
 }
 btnSelectMode.addEventListener("click", toggleSelectMode);
 btnClearSelection.addEventListener("click", () => { selectedIds.clear(); updateSelUi(); render(); });
-btnSelectAll.addEventListener("click", () => { for (const r of rows) if (matchesFilters(r)) selectedIds.add(r.id); updateSelUi(); render(); });
+btnSelectAll.addEventListener("click", () => { for (const r of rows) if (matchesFilters(r)) selectedIds.add(r.seq); updateSelUi(); render(); });
 filterText.addEventListener("input", render);
 hideDataUrl.addEventListener("change", render);
 modeCbs.forEach(cb => cb.addEventListener("change", render));
@@ -127,34 +127,36 @@ function render(){
   gridBody.innerHTML = "";
   for (const r of rows) {
     if (!matchesFilters(r)) continue;
-    const tr = document.createElement("tr"); tr.dataset.id = r.id;
+    const tr = document.createElement("tr"); tr.dataset.seq = r.seq;
     const selTd = document.createElement("td"); selTd.className = "selcol" + (selectMode ? "" : " hidden");
-    const cb = document.createElement("input"); cb.type="checkbox"; cb.checked = selectedIds.has(r.id);
-    cb.addEventListener("click", (ev)=>{ ev.stopPropagation(); if (cb.checked) selectedIds.add(r.id); else selectedIds.delete(r.id); updateSelUi(); });
+    const cb = document.createElement("input"); cb.type="checkbox"; cb.checked = selectedIds.has(r.seq);
+    cb.addEventListener("click", (ev)=>{ ev.stopPropagation(); if (cb.checked) selectedIds.add(r.seq); else selectedIds.delete(r.seq); updateSelUi(); });
     selTd.appendChild(cb);
 
     tr.innerHTML = `
       <td title="${r.url}">${nameFromUrl(r.url)}</td>
       <td>${r.method||"-"}</td>
       <td>${r.status||"-"}</td>
+      <td>${r.protocol||"-"}</td>
       <td>${r.mimeType||"-"}</td>
       <td>${guessKind(r)}</td>
       <td>${humanSize(r.bodySize)}</td>
       <td>${Math.round((r.time||0)*1000)}</td>`;
     tr.prepend(selTd);
-    tr.addEventListener("click", ()=> { if (selectMode){ if (selectedIds.has(r.id)) selectedIds.delete(r.id); else selectedIds.add(r.id); updateSelUi(); render(); } else { showDetail(r.id); } });
+    tr.addEventListener("click", ()=> { if (selectMode){ if (selectedIds.has(r.seq)) selectedIds.delete(r.seq); else selectedIds.add(r.seq); updateSelUi(); render(); } else { showDetail(r.seq); } });
     gridBody.appendChild(tr);
   }
   updateSelUi();
 }
 
 function formatHeaders(arr){ return (arr||[]).map(h=>`${h.name}: ${h.value}`).join('\n'); }
-function showDetail(id){
-  const r = rows.find(x=>x.id===id); if (!r) return;
+function showDetail(seq){
+  const r = rows.find(x=>x.seq===seq); if (!r) return;
   current = r; setActiveTab("headers");
   headersPre.textContent = [
     `URL: ${r.url}`,
-    `Method: ${r.method}  |  Status: ${r.status} ${r.statusText||""}  |  Type: ${r.mimeType||"-"}  |  Cat: ${guessKind(r)}`,
+    `Method: ${r.method}  |  Status: ${r.status} ${r.statusText||""}  |  Proto: ${r.protocol||"-"}  |  Type: ${r.mimeType||"-"}`,
+    r.redirectedTo ? `Redirected To: ${r.redirectedTo}` : "",
     "",
     "[Request Headers]",
     formatHeaders(r.requestHeaders),
@@ -256,7 +258,7 @@ function guessExt(mime, enc){ const m=(mime||'').toLowerCase(); if(m.includes('j
 
 // Export ZIP (Readable)
 btnExportSelectedZIP.addEventListener('click', async () => {
-  const selected = rows.filter(r => selectedIds.has(r.id)).sort((a,b)=>(a.seq||0)-(b.seq||0));
+  const selected = rows.filter(r => selectedIds.has(r.seq)).sort((a,b)=>(a.seq||0)-(b.seq||0));
   const pad = (n)=>String(n).padStart(5,'0');
   const enc = new TextEncoder();
   const files = [];
