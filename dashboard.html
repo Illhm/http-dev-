@@ -39,7 +39,7 @@
           <thead>
             <tr id="gridHeader">
               <th class="selcol hidden"><input id="masterSel" type="checkbox"></th>
-              <th>Nama</th><th>Metode</th><th>Status</th><th>Tipe</th><th>Cat</th><th>Ukuran</th><th>Waktu (ms)</th>
+              <th>Nama</th><th>Metode</th><th>Status</th><th>Proto</th><th>IP</th><th>Tipe</th><th>Cat</th><th>Ukuran</th><th>Waktu (ms)</th>
             </tr>
           </thead>
           <tbody id="gridBody"></tbody>
@@ -60,7 +60,13 @@
         <div id="tab-payload" class="tab"><pre id="payloadPre"></pre></div>
         <div id="tab-preview" class="tab"><pre id="previewPre"></pre></div>
         <div id="tab-response" class="tab">
-          <div class="row"><button id="btnCopyResBody">Copy</button><button id="btnSaveResBody">Save</button><span id="resBodyInfo" class="muted"></span></div>
+          <div class="row">
+            <button id="btnCopyResBody">Copy</button>
+            <button id="btnSaveResBody">Save</button>
+            <button id="btnReplay" class="alt">Replay</button>
+            <button id="btnEditResend" class="alt">Edit & Resend</button>
+            <span id="resBodyInfo" class="muted"></span>
+          </div>
           <pre id="responsePre"></pre>
         </div>
       </section>

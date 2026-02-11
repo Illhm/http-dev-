@@ -15,11 +15,12 @@ const modeCbs = Array.from(document.querySelectorAll("input.mode"));
 const tabs = document.querySelectorAll(".detail-tabs button");
 const tabViews = {headers: document.getElementById("tab-headers"),payload: document.getElementById("tab-payload"),preview: document.getElementById("tab-preview"),response: document.getElementById("tab-response")};
 const headersPre = $("#headersPre");const payloadPre = $("#payloadPre");const previewPre = $("#previewPre");const responsePre = $("#responsePre");const resBodyInfo = $("#resBodyInfo");const btnCopyResBody = $("#btnCopyResBody");const btnSaveResBody = $("#btnSaveResBody");
+const btnReplay = $("#btnReplay"); const btnEditResend = $("#btnEditResend");
 
 // Resizer
 const divider = document.getElementById("divider");let startX = 0, startLeft = 0;divider.addEventListener("dblclick", () => setLeftPercent(42));divider.addEventListener("mousedown", (e) => {startX = e.clientX;startLeft = getLeftPercent();const move = (ev)=>{const dx = ev.clientX - startX;const pct = Math.min(80, Math.max(20, startLeft + (dx/window.innerWidth)*100));setLeftPercent(pct);};const up = ()=>{ window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };window.addEventListener("mousemove", move);window.addEventListener("mouseup", up);});function getLeftPercent(){ const s = getComputedStyle(document.documentElement).getPropertyValue('--left').trim(); return parseFloat(s.replace('%','')) || 42; }function setLeftPercent(p){ document.documentElement.style.setProperty('--left', p+'%'); }
 
-let rows = [];let current = null;let selectMode = false;let selectedIds = new Set();
+let rows = [];let current = null;let selectMode = false;let selectedIds = new Set();let currentTabId = null;
 
 function humanSize(bytes){ if(bytes==null||isNaN(bytes))return "-"; const u=["B","KB","MB","GB"]; let i=0,n=Math.max(0,bytes);while(n>=1024&&i<u.length-1){n/=1024;i++;}return `${n.toFixed(1)} ${u[i]}`;}
 function pretty(obj){ try{ if(typeof obj==="string") return JSON.stringify(JSON.parse(obj),null,2); return JSON.stringify(obj,null,2);}catch{return String(obj);}}
@@ -90,29 +91,58 @@ filterText.addEventListener("input", render);
 hideDataUrl.addEventListener("change", render);
 modeCbs.forEach(cb => cb.addEventListener("change", render));
 
-function render(){
-  gridBody.innerHTML = "";
-  for (const r of rows) {
-    if (!matchesFilters(r)) continue;
-    const tr = document.createElement("tr"); tr.dataset.id = r.id;
-    const selTd = document.createElement("td"); selTd.className = "selcol" + (selectMode ? "" : " hidden");
-    const cb = document.createElement("input"); cb.type="checkbox"; cb.checked = selectedIds.has(r.id);
-    cb.addEventListener("click", (ev)=>{ ev.stopPropagation(); if (cb.checked) selectedIds.add(r.id); else selectedIds.delete(r.id); updateSelUi(); });
-    selTd.appendChild(cb);
+function createRow(r){
+  const tr = document.createElement("tr"); tr.dataset.id = r.id;
+  updateRowContent(tr, r);
+  tr.addEventListener("click", ()=> { if (selectMode){ if (selectedIds.has(r.id)) selectedIds.delete(r.id); else selectedIds.add(r.id); updateSelUi(); render(); } else { showDetail(r.id); } });
+  return tr;
+}
+function updateRowContent(tr, r){
+  const selTd = document.createElement("td"); selTd.className = "selcol" + (selectMode ? "" : " hidden");
+  if(selectMode) {
+      const cb = document.createElement("input"); cb.type="checkbox"; cb.checked = selectedIds.has(r.id);
+      cb.addEventListener("click", (ev)=>{ ev.stopPropagation(); if (cb.checked) selectedIds.add(r.id); else selectedIds.delete(r.id); updateSelUi(); });
+      selTd.appendChild(cb);
+  }
 
-    tr.innerHTML = `
+  tr.innerHTML = `
       <td title="${r.url}">${nameFromUrl(r.url)}</td>
       <td>${r.method||"-"}</td>
       <td>${r.status||"-"}</td>
+      <td>${r.protocol||"-"}</td>
+      <td>${r.remoteIPAddress||"-"}</td>
       <td>${r.mimeType||"-"}</td>
       <td>${guessKind(r)}</td>
       <td>${humanSize(r.bodySize)}</td>
       <td>${Math.round((r.time||0)*1000)}</td>`;
-    tr.prepend(selTd);
-    tr.addEventListener("click", ()=> { if (selectMode){ if (selectedIds.has(r.id)) selectedIds.delete(r.id); else selectedIds.add(r.id); updateSelUi(); render(); } else { showDetail(r.id); } });
-    gridBody.appendChild(tr);
+  tr.prepend(selTd);
+}
+
+function render(){
+  gridBody.innerHTML = "";
+  for (const r of rows) {
+    if (!matchesFilters(r)) continue;
+    gridBody.appendChild(createRow(r));
   }
   updateSelUi();
+}
+
+function upsertRow(r){
+  const idx = rows.findIndex(x=>x.id===r.id);
+  if (idx !== -1) {
+    rows[idx] = r;
+    const tr = gridBody.querySelector(`tr[data-id="${r.id}"]`);
+    if (tr) {
+      if (!matchesFilters(r)) { tr.remove(); return; }
+      updateRowContent(tr, r);
+      if (current && current.id === r.id) { current=r; showDetail(r.id); }
+    } else {
+      if (matchesFilters(r)) gridBody.appendChild(createRow(r));
+    }
+  } else {
+    rows.push(r);
+    if (matchesFilters(r)) gridBody.appendChild(createRow(r));
+  }
 }
 
 function formatHeaders(arr){ return (arr||[]).map(h=>`${h.name}: ${h.value}`).join('\n'); }
@@ -143,6 +173,38 @@ btnSaveResBody.addEventListener("click", () => {
   const ext = guessExt(current.mimeType, current.responseBodyEncoding);
   const blob = current.responseBodyEncoding==='base64' ? new Blob([b64toBytes(current.responseBodyRaw)], {type: current.mimeType||'application/octet-stream'}) : new Blob([current.responseBodyRaw], {type:(current.mimeType||'text/plain')+';charset=utf-8'});
   const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`response${ext}`; a.click(); URL.revokeObjectURL(url);
+});
+
+async function executeReplay(method, url, headers, body){
+  if (!currentTabId) { alert("Capture not active or tab ID unknown."); return; }
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: currentTabId },
+      func: (m, u, h, b) => {
+        const opts = { method: m, headers: {} };
+        (h||[]).forEach(x => opts.headers[x.name] = x.value);
+        if (b && ['POST','PUT','PATCH'].includes(m.toUpperCase())) opts.body = b;
+        console.log("Replaying", m, u);
+        fetch(u, opts).then(r=>console.log("Replay status:", r.status)).catch(console.error);
+      },
+      args: [method, url, headers, body]
+    });
+  } catch(e){ console.error(e); alert("Replay failed: "+e.message); }
+}
+
+btnReplay.addEventListener("click", () => {
+  if (!current) return;
+  executeReplay(current.method, current.url, current.requestHeaders, current.requestBodyText);
+});
+btnEditResend.addEventListener("click", () => {
+  if (!current) return;
+  const m = prompt("Method:", current.method); if(m===null) return;
+  const u = prompt("URL:", current.url); if(u===null) return;
+  let b = current.requestBodyText;
+  if (['POST','PUT','PATCH'].includes(m.toUpperCase())) {
+    b = prompt("Body:", b); if(b===null) return;
+  }
+  executeReplay(m, u, current.requestHeaders, b);
 });
 function b64toBytes(b64){ const bin = atob(b64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i); return u8; }
 function guessExt(mime, enc){ const m=(mime||'').toLowerCase(); if(m.includes('json'))return'.json'; if(m==='text/html')return'.html'; if(m.includes('xml'))return'.xml'; if(m==='text/plain')return'.txt'; if(m.startsWith('image/'))return'.'+m.split('/')[1].split(';')[0]; if(m.startsWith('video/'))return'.'+m.split('/')[1].split(';')[0]; if(m.startsWith('audio/'))return'.'+m.split('/')[1].split(';')[0]; if(m==='application/wasm')return'.wasm'; return enc==='base64'?'.bin':'.txt'; }
@@ -271,9 +333,9 @@ function crc32(u8){ let c=0^(-1); for(let i=0;i<u8.length;i++){ c=(c>>>8) ^ CRC_
 chrome.runtime.onMessage.addListener((msg) => {
   if (!msg || !msg.__RRSTREAM) return;
   const { event, data } = msg;
-  if (event === 'entry') { const r = data.record; rows.push(r); render(); }
-  else if (event === 'started') { attachInfo.textContent = `Capturing on tab ${data.tabId}`; }
-  else if (event === 'stopped') { attachInfo.textContent = "Idle"; }
+  if (event === 'entry') { upsertRow(data.record); }
+  else if (event === 'started') { currentTabId = data.tabId; attachInfo.textContent = `Capturing on tab ${data.tabId}`; }
+  else if (event === 'stopped') { currentTabId = null; attachInfo.textContent = "Idle"; }
   else if (event === 'cleared') { rows = []; render(); }
 });
 
@@ -281,6 +343,7 @@ chrome.runtime.onMessage.addListener((msg) => {
 (async function init(){
   const st = await chrome.runtime.sendMessage({ __RRDBG: true, cmd: 'getAll' });
   attachInfo.textContent = st.attached ? `Capturing on tab ${st.tabId}` : "Idle (tap icon to start)";
+  if (st.attached) currentTabId = st.tabId;
   rows = (st.entries || []);
   render();
 })();
