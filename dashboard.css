@@ -23,5 +23,41 @@ body{margin:0;background:var(--bg);color:var(--fg);font:12.5px/1.4 ui-sans-serif
 .detail-tabs button.active{border-color:var(--accent)}
 .tab{display:none}.tab.active{display:block}
 pre{margin:0;padding:8px;background:#0f1421;border:1px solid var(--border);border-radius:6px;max-height:calc(100vh - 160px);overflow:auto;white-space:pre-wrap;word-break:break-word}
+#previewContainer { padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: #0f1421; overflow: auto; max-height: calc(100vh - 160px); }
+#previewContainer img { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+#previewContainer pre { border: none; background: transparent; padding: 0; max-height: none; }
 .row{display:flex;gap:8px;align-items:center;margin:8px 0}
 #statusBar{height:20px;border-top:1px solid var(--border);display:flex;align-items:center;padding:0 8px;background:#0f1421}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  #split { display: block; height: calc(100vh - 140px); position: relative; }
+  #divider { display: none; }
+  #leftPane { width: 100%; height: 100%; border-right: none; }
+  #rightPane { display: none; width: 100%; height: 100%; position: absolute; top: 0; left: 0; background: var(--bg); z-index: 20; }
+
+  /* Toggle view class on #split */
+  #split.mobile-detail-view #leftPane { display: none; }
+  #split.mobile-detail-view #rightPane { display: block; }
+
+  /* Hide columns 5+ (Proto, IP, etc.) */
+  #grid th:nth-child(n+5), #grid td:nth-child(n+5) { display: none; }
+
+  /* Adjust toolbar for mobile */
+  .toolbar { gap: 4px; padding: 4px; }
+  .toolbar .left, .toolbar .right { width: 100%; display: flex; flex-wrap: wrap; gap: 4px; }
+  .toolbar input[type="text"] { width: 100%; }
+  .toolbar button { flex: 1; text-align: center; padding: 6px; }
+
+  /* Larger touch targets */
+  #grid tbody td { padding: 12px 6px; font-size: 14px; }
+  .detail-tabs button { padding: 8px 12px; font-size: 14px; }
+
+  /* Mobile Nav Back Button (hidden by default on desktop, shown here) */
+  #mobileBackBtn { display: inline-block; margin-right: 8px; padding: 6px 12px; background: #2a3450; border: 1px solid var(--border); color: var(--fg); border-radius: 6px; }
+}
+
+/* Hide mobile back button on desktop */
+@media (min-width: 769px) {
+  #mobileBackBtn { display: none; }
+}
