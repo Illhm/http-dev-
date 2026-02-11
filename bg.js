@@ -1,5 +1,7 @@
 // MV3 background — anti-refresh log
 const state = { attached:false, attachedTabs:new Set(), requests:new Map(), nextSeq:0, throttle:'none', cacheDisabled:false, attaching:new Set() };
+const sessionToTab = new Map(); // sessionId -> tabId
+const autoAttachedTabs = new Set(); // tabId
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || !msg.__RRDBG) return;
@@ -44,6 +46,9 @@ async function startCapture(tabId){
       const p3 = chrome.debugger.sendCommand({ tabId }, "Runtime.enable");
       await Promise.all([p1, p2, p3]);
 
+      // Enable auto-attach to capture new tabs
+      await chrome.debugger.sendCommand({ tabId }, "Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
+
       await applyCacheDisabled(tabId); await applyThrottle(tabId);
       subscribeDebugger();
       broadcast('started', { tabId });
@@ -59,6 +64,8 @@ async function stopCapture(){
     try { await chrome.debugger.detach({ tabId }); } catch(e){}
   }
   state.attachedTabs.clear();
+  sessionToTab.clear();
+  autoAttachedTabs.clear();
   state.attached = false;
   broadcast('stopped', {});
 }
@@ -90,12 +97,8 @@ function onDetach(source){
   if (state.attachedTabs.has(source.tabId)) {
     state.attachedTabs.delete(source.tabId);
     if (state.attachedTabs.size === 0) {
-       // Optional: state.attached = false; broadcast('stopped', {});
-       // But we keep "attached" true if we want to auto-attach to future tabs?
-       // For now, let's keep it consistent with "stopped" if all tabs are gone.
-       // However, user might still have "session" active waiting for webNavigation.
-       // The previous logic was single tab => stop.
-       // Let's just remove from set.
+       sessionToTab.clear();
+       autoAttachedTabs.clear();
     }
   }
 }
@@ -106,12 +109,63 @@ function ensure(requestId, tabId){
   return state.requests.get(key);
 }
 
+async function sendCommandToSession(parentTabId, sessionId, method, params = {}) {
+    const msg = { id: ++state.nextSeq, method, params };
+    await chrome.debugger.sendCommand({ tabId: parentTabId }, "Target.sendMessageToTarget", {
+        sessionId,
+        message: JSON.stringify(msg)
+    });
+}
+
 async function onEvent(source, method, params){
-  if (!state.attached || !state.attachedTabs.has(source.tabId)) return;
+  // Handle Target events for auto-attach
+  if (method === 'Target.attachedToTarget') {
+      const sessionId = params.sessionId;
+      const targetInfo = params.targetInfo;
+      const parentTabId = source.tabId;
+
+      try {
+          const targets = await chrome.debugger.getTargets();
+          const target = targets.find(t => t.id === targetInfo.targetId);
+          if (target && target.tabId) {
+              sessionToTab.set(sessionId, target.tabId);
+              autoAttachedTabs.add(target.tabId);
+
+              await sendCommandToSession(parentTabId, sessionId, "Network.enable", { includeExtraInfo:true, maxPostDataSize:-1 });
+              await sendCommandToSession(parentTabId, sessionId, "Page.enable");
+              await sendCommandToSession(parentTabId, sessionId, "Runtime.enable");
+              await sendCommandToSession(parentTabId, sessionId, "Runtime.runIfWaitingForDebugger");
+          }
+      } catch (e) {
+          console.error('Auto-attach setup failed', e);
+      }
+      return;
+  }
+
+  if (method === 'Target.detachedFromTarget') {
+      const sessionId = params.sessionId;
+      const tId = sessionToTab.get(sessionId);
+      if (tId) autoAttachedTabs.delete(tId);
+      sessionToTab.delete(sessionId);
+      return;
+  }
+
+  // Determine actual tabId
+  let tabId = source.tabId;
+  if (params && params.sessionId && sessionToTab.has(params.sessionId)) {
+      tabId = sessionToTab.get(params.sessionId);
+  }
+
+  // Check if we should process this event
+  const isAttached = state.attachedTabs.has(tabId);
+  const isAutoAttached = autoAttachedTabs.has(tabId);
+
+  if (!state.attached || (!isAttached && !isAutoAttached)) return;
+
   try {
     switch(method){
       case 'Network.requestWillBeSent': {
-        const r = ensure(params.requestId, source.tabId);
+        const r = ensure(params.requestId, tabId);
         r.url = params.request.url; r.method = params.request.method;
         r.requestHeaders = headersFrom(params.request.headers); r.requestBodyText = params.request.postData || '';
         r._t0 = params.timestamp; r.startedDateTime = new Date(Math.round(params.wallTime*1000)).toISOString();
@@ -120,10 +174,10 @@ async function onEvent(source, method, params){
         broadcast('entry', { id: r.id, record: r });
       } break;
       case 'Network.requestWillBeSentExtraInfo': {
-        const r = ensure(params.requestId, source.tabId); r.requestHeaders = mergeHeaders(r.requestHeaders, params.headers);
+        const r = ensure(params.requestId, tabId); r.requestHeaders = mergeHeaders(r.requestHeaders, params.headers);
       } break;
       case 'Network.responseReceived': {
-        const r = ensure(params.requestId, source.tabId);
+        const r = ensure(params.requestId, tabId);
         r.mimeType = params.response.mimeType; r.status = params.response.status; r.statusText = params.response.statusText;
         r.responseHeaders = headersFrom(params.response.headers); r.timing = params.response.timing || null; r.resourceType = r.resourceType || params.type || null;
         r.protocol = params.response.protocol || '';
@@ -132,18 +186,25 @@ async function onEvent(source, method, params){
         broadcast('entry', { id: r.id, record: r });
       } break;
       case 'Network.responseReceivedExtraInfo': {
-        const r = ensure(params.requestId, source.tabId); r.responseHeaders = mergeHeaders(r.responseHeaders, params.headers);
+        const r = ensure(params.requestId, tabId); r.responseHeaders = mergeHeaders(r.responseHeaders, params.headers);
       } break;
       case 'Network.loadingFinished': {
-        const r = ensure(params.requestId, source.tabId);
+        const r = ensure(params.requestId, tabId);
         r.time = (params.timestamp - (r._t0 || params.timestamp)); r.encodedDataLength = params.encodedDataLength;
-        try{ const body = await chrome.debugger.sendCommand({ tabId: source.tabId }, 'Network.getResponseBody', { requestId: params.requestId });
-             r.responseBodyRaw = body.body || ''; r.responseBodyEncoding = body.base64Encoded ? 'base64' : 'utf-8'; r.bodySize = r.encodedDataLength;
+        try{
+             let body;
+             if (isAutoAttached) {
+                 // Getting body from auto-attached session is complex, skipping for now
+                 r.responseBodyRaw=''; r.responseBodyEncoding='utf-8';
+             } else {
+                 body = await chrome.debugger.sendCommand({ tabId: source.tabId }, 'Network.getResponseBody', { requestId: params.requestId });
+                 r.responseBodyRaw = body.body || ''; r.responseBodyEncoding = body.base64Encoded ? 'base64' : 'utf-8'; r.bodySize = r.encodedDataLength;
+             }
         }catch(e){ r.responseBodyRaw=''; r.responseBodyEncoding='utf-8'; }
         broadcast('entry', { id: r.id, record: r });
       } break;
       case 'Network.loadingFailed': {
-        const r = ensure(params.requestId, source.tabId); r.errorText = params.errorText; r.canceled = params.canceled || false;
+        const r = ensure(params.requestId, tabId); r.errorText = params.errorText; r.canceled = params.canceled || false;
         r.time = (params.timestamp - (r._t0 || params.timestamp)); broadcast('entry', { id: r.id, record: r });
       } break;
     }
@@ -158,23 +219,6 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
     if (!state.attached) return;
     if (details.frameId === 0 && details.url && (details.url.startsWith('http://') || details.url.startsWith('https://'))) {
       startCapture(details.tabId);
-    }
-  });
-}
-
-// Auto-attach to new tabs opened from an attached tab
-if (chrome.webNavigation && chrome.webNavigation.onCreatedNavigationTarget) {
-  chrome.webNavigation.onCreatedNavigationTarget.addListener((details) => {
-    if (state.attached && state.attachedTabs.has(details.sourceTabId)) {
-      startCapture(details.tabId);
-    }
-  });
-}
-
-if (chrome.tabs && chrome.tabs.onCreated) {
-  chrome.tabs.onCreated.addListener((tab) => {
-    if (state.attached && tab.openerTabId && state.attachedTabs.has(tab.openerTabId)) {
-      startCapture(tab.id);
     }
   });
 }
