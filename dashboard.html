@@ -50,6 +50,7 @@
 
       <section id="rightPane">
         <div class="detail-tabs">
+          <button id="mobileBackBtn">Back</button>
           <button data-tab="headers" class="active">Header</button>
           <button data-tab="payload">Payload</button>
           <button data-tab="preview">Pratinjau</button>
@@ -58,7 +59,7 @@
 
         <div id="tab-headers" class="tab active"><pre id="headersPre"></pre></div>
         <div id="tab-payload" class="tab"><pre id="payloadPre"></pre></div>
-        <div id="tab-preview" class="tab"><pre id="previewPre"></pre></div>
+        <div id="tab-preview" class="tab"><div id="previewContainer"></div></div>
         <div id="tab-response" class="tab">
           <div class="row">
             <button id="btnCopyResBody">Copy</button>

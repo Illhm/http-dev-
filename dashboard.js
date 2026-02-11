@@ -14,8 +14,15 @@ const modeCbs = Array.from(document.querySelectorAll("input.mode"));
 
 const tabs = document.querySelectorAll(".detail-tabs button");
 const tabViews = {headers: document.getElementById("tab-headers"),payload: document.getElementById("tab-payload"),preview: document.getElementById("tab-preview"),response: document.getElementById("tab-response")};
-const headersPre = $("#headersPre");const payloadPre = $("#payloadPre");const previewPre = $("#previewPre");const responsePre = $("#responsePre");const resBodyInfo = $("#resBodyInfo");const btnCopyResBody = $("#btnCopyResBody");const btnSaveResBody = $("#btnSaveResBody");
+const headersPre = $("#headersPre");const payloadPre = $("#payloadPre");const previewContainer = $("#previewContainer");const responsePre = $("#responsePre");const resBodyInfo = $("#resBodyInfo");const btnCopyResBody = $("#btnCopyResBody");const btnSaveResBody = $("#btnSaveResBody");
 const btnReplay = $("#btnReplay"); const btnEditResend = $("#btnEditResend");
+const mobileBackBtn = $("#mobileBackBtn");
+const splitPane = $("#split");
+
+// Mobile Back
+mobileBackBtn && mobileBackBtn.addEventListener("click", () => {
+  splitPane.classList.remove("mobile-detail-view");
+});
 
 // Resizer
 const divider = document.getElementById("divider");let startX = 0, startLeft = 0;divider.addEventListener("dblclick", () => setLeftPercent(42));divider.addEventListener("mousedown", (e) => {startX = e.clientX;startLeft = getLeftPercent();const move = (ev)=>{const dx = ev.clientX - startX;const pct = Math.min(80, Math.max(20, startLeft + (dx/window.innerWidth)*100));setLeftPercent(pct);};const up = ()=>{ window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };window.addEventListener("mousemove", move);window.addEventListener("mouseup", up);});function getLeftPercent(){ const s = getComputedStyle(document.documentElement).getPropertyValue('--left').trim(); return parseFloat(s.replace('%','')) || 42; }function setLeftPercent(p){ document.documentElement.style.setProperty('--left', p+'%'); }
@@ -94,7 +101,15 @@ modeCbs.forEach(cb => cb.addEventListener("change", render));
 function createRow(r){
   const tr = document.createElement("tr"); tr.dataset.id = r.id;
   updateRowContent(tr, r);
-  tr.addEventListener("click", ()=> { if (selectMode){ if (selectedIds.has(r.id)) selectedIds.delete(r.id); else selectedIds.add(r.id); updateSelUi(); render(); } else { showDetail(r.id); } });
+  tr.addEventListener("click", ()=> {
+    if (selectMode){
+      if (selectedIds.has(r.id)) selectedIds.delete(r.id); else selectedIds.add(r.id);
+      updateSelUi(); render();
+    } else {
+      showDetail(r.id);
+      splitPane.classList.add("mobile-detail-view");
+    }
+  });
   return tr;
 }
 function updateRowContent(tr, r){
@@ -161,7 +176,23 @@ function showDetail(id){
   ].join('\n');
 
   payloadPre.textContent = r.requestBodyText || "(no payload)";
-  previewPre.textContent = (r.mimeType||"").includes("json") ? pretty(r.responseBodyRaw) : (r.responseBodyEncoding==="base64" ? `(base64) ${ (r.responseBodyRaw||"").length } chars` : (r.responseBodyRaw || "(no body)"));
+  // Preview Logic
+  previewContainer.innerHTML = "";
+  const mime = (r.mimeType||"").toLowerCase();
+  if (mime.startsWith("image/") && r.responseBodyRaw) {
+    const img = document.createElement("img");
+    img.src = `data:${r.mimeType};base64,${r.responseBodyRaw}`;
+    previewContainer.appendChild(img);
+  } else {
+    const pre = document.createElement("pre");
+    if (mime.includes("json")) {
+      pre.textContent = pretty(r.responseBodyRaw);
+    } else {
+      pre.textContent = (r.responseBodyEncoding==="base64" ? `(base64) ${ (r.responseBodyRaw||"").length } chars` : (r.responseBodyRaw || "(no body)"));
+    }
+    previewContainer.appendChild(pre);
+  }
+
   responsePre.textContent = (r.responseBodyEncoding==="base64" ? `(base64) ${ (r.responseBodyRaw||"").length } chars` : (r.responseBodyRaw || "(no body)"));
   resBodyInfo.textContent = r.responseBodyRaw ? `${r.mimeType||"unknown"} | ${r.responseBodyEncoding||"utf-8"} | ${(r.responseBodyRaw||"").length} chars` : "";
 }
@@ -217,20 +248,25 @@ btnExportSelectedZIP.addEventListener('click', async () => {
   const files = [];
   // README & index
   const readme = `# Export Req/Res (Readable)
-Berisi folder per-request, dengan urutan sesuai waktu capture.
-- 00-meta.txt : ringkasan metadata
-- 01-request-headers.txt
-- 02-request-body.(txt/json)
-- 03-response-headers.txt
-- 04-response-body.(json/html/txt/bin)
+Organized by Domain > Request.
+- 00_summary.txt : Metadata
+- 01_req_headers.txt
+- 02_req_body.(json/txt)
+- 03_res_headers.txt
+- 04_res_body.(json/html/txt/bin)
 `;
   files.push({ name: "README.md", data: enc.encode(readme) });
-  const csvHeader = "seq,timestamp,method,status,mime,size,url\n";
+  const csvHeader = "seq,timestamp,method,status,domain,path,mime,size,url\n";
   let csv = csvHeader;
-  let md = "| seq | method | status | mime | size | url |\n|---:|:--|:--:|:--|--:|:--|\n";
+  let md = "| seq | method | status | domain | path | mime | size |\n|---:|:--|:--:|:--|:--|:--|--:|\n";
   for (const r of selected){
-    const url = new URL(r.url);
-    const base = `${pad(r.seq||0)}__${(r.method||'GET')}__${sanitize(url.hostname)}${sanitize(url.pathname).slice(-60)}`.replace(/_+/g,'_');
+    const urlObj = new URL(r.url);
+    const host = sanitize(urlObj.hostname);
+    const path = sanitize(urlObj.pathname).slice(-50).replace(/^_+/, '');
+    const folderName = `${pad(r.seq||0)}_${r.method}_${path}`;
+    const base = `${host}/${folderName}`;
+
+    // Meta
     const meta = [
       `URL: ${r.url}`,
       `Method: ${r.method}`,
@@ -241,16 +277,39 @@ Berisi folder per-request, dengan urutan sesuai waktu capture.
       `Time(ms): ${Math.round((r.time||0)*1000)}`,
       `Category: ${guessKind(r)}`,
     ].join('\n');
-    files.push({ name: `${base}/00-meta.txt`, data: enc.encode(meta) });
-    files.push({ name: `${base}/01-request-headers.txt`, data: enc.encode(formatHeaders(r.requestHeaders)) });
-    files.push({ name: `${base}/02-request-body${guessExt((r.requestHeaders||[]).find(h=>h.name.toLowerCase()==='content-type')?.value||'text/plain', 'text')}`, data: enc.encode(r.requestBodyText||'') });
-    files.push({ name: `${base}/03-response-headers.txt`, data: enc.encode(formatHeaders(r.responseHeaders)) });
-    const ext = guessExt(r.mimeType, r.responseBodyEncoding);
-    const bodyData = r.responseBodyEncoding==='base64' ? b64toBytes(r.responseBodyRaw||'') : enc.encode(r.responseBodyRaw||'');
-    files.push({ name: `${base}/04-response-body${ext}`, data: bodyData });
+    files.push({ name: `${base}/00_summary.txt`, data: enc.encode(meta) });
 
-    csv += `${r.seq||0},${JSON.stringify(r.startedDateTime||'')},${JSON.stringify(r.method||'')},${r.status||0},${JSON.stringify(r.mimeType||'')},${r.bodySize||0},${JSON.stringify(r.url)}\n`;
-    md += `| ${r.seq||0} | ${r.method||''} | ${r.status||0} | ${r.mimeType||''} | ${r.bodySize||0} | ${r.url} |\n`;
+    // Headers
+    files.push({ name: `${base}/01_req_headers.txt`, data: enc.encode(formatHeaders(r.requestHeaders)) });
+    files.push({ name: `${base}/03_res_headers.txt`, data: enc.encode(formatHeaders(r.responseHeaders)) });
+
+    // Request Body
+    let reqExt = guessExt((r.requestHeaders||[]).find(h=>h.name.toLowerCase()==='content-type')?.value||'text/plain', 'text');
+    let reqBody = r.requestBodyText || '';
+    if (reqExt === '.json') { try { reqBody = JSON.stringify(JSON.parse(reqBody), null, 2); } catch {} }
+    files.push({ name: `${base}/02_req_body${reqExt}`, data: enc.encode(reqBody) });
+
+    // Response Body
+    let resExt = guessExt(r.mimeType, r.responseBodyEncoding);
+    let resBodyData;
+    if (r.responseBodyEncoding === 'base64') {
+       resBodyData = b64toBytes(r.responseBodyRaw||'');
+       if (resExt === '.json') {
+          try {
+             const text = new TextDecoder().decode(resBodyData);
+             const json = JSON.stringify(JSON.parse(text), null, 2);
+             resBodyData = enc.encode(json);
+          } catch {}
+       }
+    } else {
+       let text = r.responseBodyRaw || '';
+       if (resExt === '.json') { try { text = JSON.stringify(JSON.parse(text), null, 2); } catch {} }
+       resBodyData = enc.encode(text);
+    }
+    files.push({ name: `${base}/04_res_body${resExt}`, data: resBodyData });
+
+    csv += `${r.seq||0},${JSON.stringify(r.startedDateTime||'')},${JSON.stringify(r.method||'')},${r.status||0},${JSON.stringify(host)},${JSON.stringify(urlObj.pathname)},${JSON.stringify(r.mimeType||'')},${r.bodySize||0},${JSON.stringify(r.url)}\n`;
+    md += `| ${r.seq||0} | ${r.method||''} | ${r.status||0} | ${host} | ${urlObj.pathname} | ${r.mimeType||''} | ${r.bodySize||0} |\n`;
   }
   files.push({ name: "index.csv", data: enc.encode(csv) });
   files.push({ name: "index.md", data: enc.encode(md) });
