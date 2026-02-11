@@ -39,7 +39,7 @@
           <thead>
             <tr id="gridHeader">
               <th class="selcol hidden"><input id="masterSel" type="checkbox"></th>
-              <th>Nama</th><th>Metode</th><th>Status</th><th>Tipe</th><th>Cat</th><th>Ukuran</th><th>Waktu (ms)</th>
+              <th>Nama</th><th>Metode</th><th>Status</th><th>Proto</th><th>Tipe</th><th>Cat</th><th>Ukuran</th><th>Waktu (ms)</th>
             </tr>
           </thead>
           <tbody id="gridBody"></tbody>
@@ -52,8 +52,12 @@
         <div class="detail-tabs">
           <button data-tab="headers" class="active">Header</button>
           <button data-tab="payload">Payload</button>
-          <button data-tab="preview">Pratinjau</button>
-          <button data-tab="response">Respons</button>
+          <button data-tab="preview">Preview</button>
+          <button data-tab="response">Response</button>
+          <span style="flex:1"></span>
+          <button id="btnReplay" title="Replay Request">Replay</button>
+          <button id="btnEditResend" title="Edit & Resend">Edit</button>
+          <button id="btnCopyCurl" title="Copy as cURL">cURL</button>
         </div>
 
         <div id="tab-headers" class="tab active"><pre id="headersPre"></pre></div>
@@ -67,6 +71,24 @@
     </section>
 
     <footer id="statusBar"><span id="attachInfo" class="muted">Idle</span></footer>
+
+    <dialog id="editModal" style="border: 1px solid #ccc; border-radius: 8px; padding: 1em; width: 600px; max-width: 90vw;">
+      <form method="dialog">
+        <h3 style="margin-top:0">Edit & Resend</h3>
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+          <select id="editMethod" style="padding:4px;"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option><option>PATCH</option><option>OPTIONS</option><option>HEAD</option></select>
+          <input type="text" id="editUrl" style="flex:1; padding:4px;" placeholder="https://example.com/api...">
+        </div>
+        <div style="margin-bottom:5px;"><strong>Headers (JSON):</strong></div>
+        <textarea id="editHeaders" rows="6" style="width: 100%; box-sizing:border-box; font-family:monospace; margin-bottom:10px;"></textarea>
+        <div style="margin-bottom:5px;"><strong>Body:</strong></div>
+        <textarea id="editBody" rows="6" style="width: 100%; box-sizing:border-box; font-family:monospace; margin-bottom:10px;"></textarea>
+        <div style="text-align:right; gap:10px;">
+          <button value="cancel" style="padding:6px 12px;">Cancel</button>
+          <button id="btnSendEdit" value="send" style="padding:6px 12px; font-weight:bold;">Send</button>
+        </div>
+      </form>
+    </dialog>
 
     <script type="module" src="dashboard.js"></script>
   </body>

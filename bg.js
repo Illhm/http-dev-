@@ -72,6 +72,22 @@ async function onEvent(source, method, params){
   try {
     switch(method){
       case 'Network.requestWillBeSent': {
+        if (params.redirectResponse) {
+          const r = ensure(params.requestId);
+          r.status = params.redirectResponse.status;
+          r.statusText = params.redirectResponse.statusText;
+          r.responseHeaders = headersFrom(params.redirectResponse.headers);
+          r.timing = params.redirectResponse.timing || null;
+          r.mimeType = params.redirectResponse.mimeType;
+          r.protocol = params.redirectResponse.protocol;
+          r.redirectedTo = params.request.url;
+          r.time = (params.timestamp - (r._t0 || params.timestamp));
+          r.bodySize = params.redirectResponse.encodedDataLength || 0;
+          r.encodedDataLength = params.redirectResponse.encodedDataLength || 0;
+          r.responseBodyRaw = ''; r.responseBodyEncoding = 'utf-8';
+          broadcast('entry', { id: r.id, record: r });
+          state.requests.delete(params.requestId);
+        }
         const r = ensure(params.requestId);
         r.url = params.request.url; r.method = params.request.method;
         r.requestHeaders = headersFrom(params.request.headers); r.requestBodyText = params.request.postData || '';
@@ -85,6 +101,7 @@ async function onEvent(source, method, params){
         const r = ensure(params.requestId);
         r.mimeType = params.response.mimeType; r.status = params.response.status; r.statusText = params.response.statusText;
         r.responseHeaders = headersFrom(params.response.headers); r.timing = params.response.timing || null; r.resourceType = r.resourceType || params.type || null;
+        r.protocol = params.response.protocol;
       } break;
       case 'Network.responseReceivedExtraInfo': {
         const r = ensure(params.requestId); r.responseHeaders = mergeHeaders(r.responseHeaders, params.headers);
