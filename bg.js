@@ -178,6 +178,7 @@ async function onEvent(source, method, params){
       } break;
       case 'Network.responseReceived': {
         const r = ensure(params.requestId, tabId);
+        if (!r.url && params.response.url) r.url = params.response.url;
         r.mimeType = params.response.mimeType; r.status = params.response.status; r.statusText = params.response.statusText;
         r.responseHeaders = headersFrom(params.response.headers); r.timing = params.response.timing || null; r.resourceType = r.resourceType || params.type || null;
         r.protocol = params.response.protocol || '';
