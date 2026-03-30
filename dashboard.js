@@ -386,8 +386,26 @@ function buildZip(files){
   return new Blob([...fileData, ...central, end], { type: "application/zip" });
 }
 // CRC32
-const CRC_TABLE = (()=>{ let c, table=[]; for (let n=0;n<256;n++){ c=n; for(let k=0;k<8;k++){ c = (c & 1) ? (0xEDB88320 ^ (c>>>1)) : (c>>>1); } table[n]=c>>>0; } return table; })();
-function crc32(u8){ let c=0^(-1); for(let i=0;i<u8.length;i++){ c=(c>>>8) ^ CRC_TABLE[(c ^ u8[i]) & 0xFF]; } return (c ^ (-1))>>>0; }
+const CRC_TABLE = (() => {
+  let c;
+  let table = [];
+  for (let n = 0; n < 256; n++) {
+    c = n;
+    for (let k = 0; k < 8; k++) {
+      c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    }
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+
+function crc32(u8) {
+  let c = 0 ^ (-1);
+  for (let i = 0; i < u8.length; i++) {
+    c = (c >>> 8) ^ CRC_TABLE[(c ^ u8[i]) & 0xFF];
+  }
+  return (c ^ (-1)) >>> 0;
+}
 // end ZIP
 
 chrome.runtime.onMessage.addListener((msg) => {
