@@ -113,24 +113,24 @@ function createRow(r){
   return tr;
 }
 function updateRowContent(tr, r){
+  tr.innerHTML = "";
   const selTd = document.createElement("td"); selTd.className = "selcol" + (selectMode ? "" : " hidden");
   if(selectMode) {
       const cb = document.createElement("input"); cb.type="checkbox"; cb.checked = selectedIds.has(r.id);
       cb.addEventListener("click", (ev)=>{ ev.stopPropagation(); if (cb.checked) selectedIds.add(r.id); else selectedIds.delete(r.id); updateSelUi(); });
       selTd.appendChild(cb);
   }
+  tr.appendChild(selTd);
 
-  tr.innerHTML = `
-      <td title="${r.url}">${nameFromUrl(r.url)}</td>
-      <td>${r.method||"-"}</td>
-      <td>${r.status||"-"}</td>
-      <td>${r.protocol||"-"}</td>
-      <td>${r.remoteIPAddress||"-"}</td>
-      <td>${r.mimeType||"-"}</td>
-      <td>${guessKind(r)}</td>
-      <td>${humanSize(r.bodySize)}</td>
-      <td>${Math.round((r.time||0)*1000)}</td>`;
-  tr.prepend(selTd);
+  const tdUrl = document.createElement("td"); tdUrl.title = r.url; tdUrl.textContent = nameFromUrl(r.url); tr.appendChild(tdUrl);
+  const tdMethod = document.createElement("td"); tdMethod.textContent = r.method||"-"; tr.appendChild(tdMethod);
+  const tdStatus = document.createElement("td"); tdStatus.textContent = r.status||"-"; tr.appendChild(tdStatus);
+  const tdProto = document.createElement("td"); tdProto.textContent = r.protocol||"-"; tr.appendChild(tdProto);
+  const tdIP = document.createElement("td"); tdIP.textContent = r.remoteIPAddress||"-"; tr.appendChild(tdIP);
+  const tdMime = document.createElement("td"); tdMime.textContent = r.mimeType||"-"; tr.appendChild(tdMime);
+  const tdKind = document.createElement("td"); tdKind.textContent = guessKind(r); tr.appendChild(tdKind);
+  const tdSize = document.createElement("td"); tdSize.textContent = humanSize(r.bodySize); tr.appendChild(tdSize);
+  const tdTime = document.createElement("td"); tdTime.textContent = Math.round((r.time||0)*1000); tr.appendChild(tdTime);
 }
 
 function render(){
