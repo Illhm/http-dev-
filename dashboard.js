@@ -60,14 +60,17 @@ function guessKind(r){
   return 'other';
 }
 
-function matchesFilters(r){
+function getFilterPredicate(){
   const ft = filterText.value.trim().toLowerCase();
-  if (hideDataUrl.checked && r.url.startsWith('data:')) return false;
+  const hideData = hideDataUrl.checked;
   const enabledKinds = new Set(modeCbs.filter(cb=>cb.checked).map(cb=>cb.value));
-  if (!enabledKinds.has(guessKind(r))) return false;
-  if (!ft) return true;
-  const blob = [r.url, r.mimeType||"", r.method, String(r.status), (r.requestBodyText||""), (r.responseBodyRaw||"")].join(" ").toLowerCase();
-  return blob.includes(ft);
+  return function(r){
+    if (hideData && r.url.startsWith('data:')) return false;
+    if (!enabledKinds.has(guessKind(r))) return false;
+    if (!ft) return true;
+    const blob = [r.url, r.mimeType||"", r.method, String(r.status), (r.requestBodyText||""), (r.responseBodyRaw||"")].join(" ").toLowerCase();
+    return blob.includes(ft);
+  };
 }
 
 function setActiveTab(name){
@@ -93,7 +96,7 @@ function toggleSelectMode(){
 }
 btnSelectMode.addEventListener("click", toggleSelectMode);
 btnClearSelection.addEventListener("click", () => { selectedIds.clear(); updateSelUi(); render(); });
-btnSelectAll.addEventListener("click", () => { for (const r of rows) if (matchesFilters(r)) selectedIds.add(r.id); updateSelUi(); render(); });
+btnSelectAll.addEventListener("click", () => { const pred = getFilterPredicate(); for (const r of rows) if (pred(r)) selectedIds.add(r.id); updateSelUi(); render(); });
 filterText.addEventListener("input", render);
 hideDataUrl.addEventListener("change", render);
 modeCbs.forEach(cb => cb.addEventListener("change", render));
@@ -133,30 +136,35 @@ function updateRowContent(tr, r){
   const tdTime = document.createElement("td"); tdTime.textContent = Math.round((r.time||0)*1000); tr.appendChild(tdTime);
 }
 
+window.render = render;
 function render(){
   gridBody.innerHTML = "";
+  const pred = getFilterPredicate();
+  const frag = document.createDocumentFragment();
   for (const r of rows) {
-    if (!matchesFilters(r)) continue;
-    gridBody.appendChild(createRow(r));
+    if (!pred(r)) continue;
+    frag.appendChild(createRow(r));
   }
+  gridBody.appendChild(frag);
   updateSelUi();
 }
 
 function upsertRow(r){
   const idx = rows.findIndex(x=>x.id===r.id);
+  const pred = getFilterPredicate();
   if (idx !== -1) {
     rows[idx] = r;
     const tr = gridBody.querySelector(`tr[data-id="${r.id}"]`);
     if (tr) {
-      if (!matchesFilters(r)) { tr.remove(); return; }
+      if (!pred(r)) { tr.remove(); return; }
       updateRowContent(tr, r);
       if (current && current.id === r.id) { current=r; showDetail(r.id); }
     } else {
-      if (matchesFilters(r)) gridBody.appendChild(createRow(r));
+      if (pred(r)) gridBody.appendChild(createRow(r));
     }
   } else {
     rows.push(r);
-    if (matchesFilters(r)) gridBody.appendChild(createRow(r));
+    if (pred(r)) gridBody.appendChild(createRow(r));
   }
 }
 
