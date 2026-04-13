@@ -68,8 +68,12 @@ function getFilterPredicate(){
     if (hideData && r.url.startsWith('data:')) return false;
     if (!enabledKinds.has(guessKind(r))) return false;
     if (!ft) return true;
-    const blob = [r.url, r.mimeType||"", r.method, String(r.status), (r.requestBodyText||""), (r.responseBodyRaw||"")].join(" ").toLowerCase();
-    return blob.includes(ft);
+    return (r.url||"").toLowerCase().includes(ft) ||
+           (r.mimeType||"").toLowerCase().includes(ft) ||
+           (r.method||"").toLowerCase().includes(ft) ||
+           String(r.status ?? "").toLowerCase().includes(ft) ||
+           (r.requestBodyText||"").toLowerCase().includes(ft) ||
+           (r.responseBodyRaw||"").toLowerCase().includes(ft);
   };
 }
 
