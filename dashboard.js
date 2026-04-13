@@ -259,7 +259,21 @@ btnEditResend.addEventListener("click", () => {
   executeReplay(m, u, current.requestHeaders, b, current.tabId);
 });
 function b64toBytes(b64){ const bin = atob(b64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i); return u8; }
-function guessExt(mime, enc){ const m=(mime||'').toLowerCase(); if(m.includes('json'))return'.json'; if(m==='text/html')return'.html'; if(m.includes('xml'))return'.xml'; if(m==='text/plain')return'.txt'; if(m.startsWith('image/'))return'.'+m.split('/')[1].split(';')[0]; if(m.startsWith('video/'))return'.'+m.split('/')[1].split(';')[0]; if(m.startsWith('audio/'))return'.'+m.split('/')[1].split(';')[0]; if(m==='application/wasm')return'.wasm'; return enc==='base64'?'.bin':'.txt'; }
+function guessExt(mime, enc) {
+  const m = (mime || '').toLowerCase();
+  if (m.includes('json')) return '.json';
+  if (m === 'text/html') return '.html';
+  if (m.includes('xml')) return '.xml';
+  if (m === 'text/plain') return '.txt';
+
+  if (m.startsWith('image/') || m.startsWith('video/') || m.startsWith('audio/')) {
+    return '.' + m.split('/')[1].split(';')[0];
+  }
+
+  if (m === 'application/wasm') return '.wasm';
+
+  return enc === 'base64' ? '.bin' : '.txt';
+}
 
 // Export ZIP (Readable)
 btnExportSelectedZIP.addEventListener('click', async () => {
