@@ -212,8 +212,43 @@ async function onEvent(source, method, params){
   } catch(e){}
 }
 
-function headersFrom(obj){ if(!obj) return []; return Object.entries(obj).map(([name,value])=>({name,value:String(value)})); }
-function mergeHeaders(cur, add){ const map=new Map(); for(const h of (cur||[])) map.set(h.name.toLowerCase(), h.value); for(const [name,value] of Object.entries(add||{})) map.set(String(name).toLowerCase(), String(value)); return Array.from(map, ([name,value])=>({name,value})); }
+function headersFrom(obj) {
+  if (!obj) {
+    return [];
+  }
+
+  const entries = Object.entries(obj);
+  const result = [];
+  for (const [name, value] of entries) {
+    result.push({
+      name,
+      value: String(value)
+    });
+  }
+  return result;
+}
+
+function mergeHeaders(cur, add) {
+  const map = new Map();
+  const currentHeaders = cur || [];
+  for (const h of currentHeaders) {
+    map.set(h.name.toLowerCase(), h.value);
+  }
+
+  const additionalHeaders = Object.entries(add || {});
+  for (const [name, value] of additionalHeaders) {
+    map.set(String(name).toLowerCase(), String(value));
+  }
+
+  const result = [];
+  for (const [name, value] of map) {
+    result.push({
+      name,
+      value
+    });
+  }
+  return result;
+}
 
 if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
   chrome.webNavigation.onBeforeNavigate.addListener((details) => {
