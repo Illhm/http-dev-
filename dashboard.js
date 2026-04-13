@@ -32,7 +32,15 @@ let rows = [];let current = null;let selectMode = false;let selectedIds = new Se
 function humanSize(bytes){ if(bytes==null||isNaN(bytes))return "-"; const u=["B","KB","MB","GB"]; let i=0,n=Math.max(0,bytes);while(n>=1024&&i<u.length-1){n/=1024;i++;}return `${n.toFixed(1)} ${u[i]}`;}
 function pretty(obj){ try{ if(typeof obj==="string") return JSON.stringify(JSON.parse(obj),null,2); return JSON.stringify(obj,null,2);}catch{return String(obj);}}
 function nameFromUrl(u){ try{ const x=new URL(u); const p=x.pathname.split('/').filter(Boolean); return (p.pop()||x.hostname)||u; }catch{return u;} }
-function sanitize(s){ return (s||'').replace(/[^a-z0-9._-]+/gi,'_'); }
+function sanitize(s){
+  let t = (s || '').replace(/[^a-z0-9._-]+/gi, '_');
+  while (t.includes('..')) t = t.replace(/\.\./g, '__');
+  return t || '_';
+}
+function csvSafe(s){
+  if (typeof s !== 'string') return s;
+  return (['=', '+', '-', '@'].some(c => s.startsWith(c))) ? "'" + s : s;
+}
 function guessKind(r){
   const t = (r.resourceType||'').toLowerCase();
   if (t) {
@@ -272,7 +280,7 @@ Organized by Domain > Request.
     const urlObj = new URL(r.url);
     const host = sanitize(urlObj.hostname);
     const path = sanitize(urlObj.pathname).slice(-50).replace(/^_+/, '');
-    const folderName = `${pad(r.seq||0)}_${r.method}_${path}`;
+    const folderName = `${pad(r.seq||0)}_${sanitize(r.method)}_${path}`;
     const base = `${host}/${folderName}`;
 
     // Meta
@@ -317,7 +325,7 @@ Organized by Domain > Request.
     }
     files.push({ name: `${base}/04_res_body${resExt}`, data: resBodyData });
 
-    csv += `${r.seq||0},${JSON.stringify(r.startedDateTime||'')},${JSON.stringify(r.method||'')},${r.status||0},${JSON.stringify(host)},${JSON.stringify(urlObj.pathname)},${JSON.stringify(r.mimeType||'')},${r.bodySize||0},${JSON.stringify(r.url)}\n`;
+    csv += `${r.seq||0},${JSON.stringify(r.startedDateTime||'')},${JSON.stringify(csvSafe(r.method||''))},${r.status||0},${JSON.stringify(csvSafe(host))},${JSON.stringify(csvSafe(urlObj.pathname))},${JSON.stringify(r.mimeType||'')},${r.bodySize||0},${JSON.stringify(csvSafe(r.url))}\n`;
     md += `| ${r.seq||0} | ${r.method||''} | ${r.status||0} | ${host} | ${urlObj.pathname} | ${r.mimeType||''} | ${r.bodySize||0} |\n`;
   }
   files.push({ name: "index.csv", data: enc.encode(csv) });
