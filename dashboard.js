@@ -41,6 +41,10 @@ function csvSafe(s){
   if (typeof s !== 'string') return s;
   return (['=', '+', '-', '@'].some(c => s.startsWith(c))) ? "'" + s : s;
 }
+function csvCell(v){
+  const s = csvSafe(String(v ?? ""));
+  return `"${s.replace(/"/g, '""')}"`;
+}
 function guessKind(r){
   const t = (r.resourceType||'').toLowerCase();
   if (t) {
@@ -343,7 +347,7 @@ Organized by Domain > Request.
     }
     files.push({ name: `${base}/04_res_body${resExt}`, data: resBodyData });
 
-    csv += `${r.seq||0},${JSON.stringify(r.startedDateTime||'')},${JSON.stringify(csvSafe(r.method||''))},${r.status||0},${JSON.stringify(csvSafe(host))},${JSON.stringify(csvSafe(urlObj.pathname))},${JSON.stringify(r.mimeType||'')},${r.bodySize||0},${JSON.stringify(csvSafe(r.url))}\n`;
+    csv += `${r.seq||0},${csvCell(r.startedDateTime)},${csvCell(r.method)},${r.status||0},${csvCell(host)},${csvCell(urlObj.pathname)},${csvCell(r.mimeType)},${r.bodySize||0},${csvCell(r.url)}\n`;
     md += `| ${r.seq||0} | ${r.method||''} | ${r.status||0} | ${host} | ${urlObj.pathname} | ${r.mimeType||''} | ${r.bodySize||0} |\n`;
   }
   files.push({ name: "index.csv", data: enc.encode(csv) });
