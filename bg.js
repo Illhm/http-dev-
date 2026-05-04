@@ -60,9 +60,9 @@ async function startCapture(tabId){
 }
 
 async function stopCapture(){
-  for (const tabId of state.attachedTabs) {
+  await Promise.all(Array.from(state.attachedTabs).map(async (tabId) => {
     try { await chrome.debugger.detach({ tabId }); } catch(e){}
-  }
+  }));
   state.attachedTabs.clear();
   sessionToTab.clear();
   autoAttachedTabs.clear();
@@ -72,18 +72,18 @@ async function stopCapture(){
 
 async function applyCacheDisabled(tId){
   const targets = tId ? [tId] : Array.from(state.attachedTabs);
-  for(const tabId of targets){
+  await Promise.all(targets.map(async (tabId) => {
     try{ await chrome.debugger.sendCommand({ tabId }, "Network.setCacheDisabled", { cacheDisabled: state.cacheDisabled }); }catch(e){}
-  }
+  }));
 }
 async function applyThrottle(tId){
   const targets = tId ? [tId] : Array.from(state.attachedTabs);
   const p = { none:{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1,connectionType:'none'},
               fast3g:{offline:false,latency:150,downloadThroughput:1.6*1024*1024/8,uploadThroughput:750*1024/8,connectionType:'cellular3g'},
               slow3g:{offline:false,latency:400,downloadThroughput:780*1024/8,uploadThroughput:330*1024/8,connectionType:'cellular3g'} }[state.throttle] || {};
-  for(const tabId of targets){
+  await Promise.all(targets.map(async (tabId) => {
     try{ await chrome.debugger.sendCommand({ tabId }, "Network.emulateNetworkConditions", p); }catch(e){}
-  }
+  }));
 }
 
 function subscribeDebugger(){
