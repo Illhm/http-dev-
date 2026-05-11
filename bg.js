@@ -23,8 +23,8 @@ async function openOrFocusDashboard(){
   const tabs = await chrome.tabs.query({});
   const found = tabs.find(t => t.url === url);
   if (found) {
-    try { await chrome.tabs.update(found.id, { active:true }); } catch(e){}
-    try { if (found.windowId) await chrome.windows.update(found.windowId, { focused:true }); } catch(e){}
+    try { await chrome.tabs.update(found.id, { active:true }); } catch(e){ console.warn('Failed to update tab', e); }
+    try { if (found.windowId) await chrome.windows.update(found.windowId, { focused:true }); } catch(e){ console.warn('Failed to update window', e); }
   } else {
     await chrome.tabs.create({ url });
   }
@@ -61,7 +61,7 @@ async function startCapture(tabId){
 
 async function stopCapture(){
   await Promise.all(Array.from(state.attachedTabs).map(async (tabId) => {
-    try { await chrome.debugger.detach({ tabId }); } catch(e){}
+    try { await chrome.debugger.detach({ tabId }); } catch(e){ console.warn('Detach failed', e); }
   }));
   state.attachedTabs.clear();
   sessionToTab.clear();
@@ -73,7 +73,7 @@ async function stopCapture(){
 async function applyCacheDisabled(tId){
   const targets = tId ? [tId] : Array.from(state.attachedTabs);
   await Promise.all(targets.map(async (tabId) => {
-    try{ await chrome.debugger.sendCommand({ tabId }, "Network.setCacheDisabled", { cacheDisabled: state.cacheDisabled }); }catch(e){}
+    try{ await chrome.debugger.sendCommand({ tabId }, "Network.setCacheDisabled", { cacheDisabled: state.cacheDisabled }); }catch(e){ console.warn('Failed to set cache disabled', e); }
   }));
 }
 async function applyThrottle(tId){
@@ -82,7 +82,7 @@ async function applyThrottle(tId){
               fast3g:{offline:false,latency:150,downloadThroughput:1.6*1024*1024/8,uploadThroughput:750*1024/8,connectionType:'cellular3g'},
               slow3g:{offline:false,latency:400,downloadThroughput:780*1024/8,uploadThroughput:330*1024/8,connectionType:'cellular3g'} }[state.throttle] || {};
   await Promise.all(targets.map(async (tabId) => {
-    try{ await chrome.debugger.sendCommand({ tabId }, "Network.emulateNetworkConditions", p); }catch(e){}
+    try{ await chrome.debugger.sendCommand({ tabId }, "Network.emulateNetworkConditions", p); }catch(e){ console.warn('Failed to emulate network conditions', e); }
   }));
 }
 
@@ -201,7 +201,7 @@ async function onEvent(source, method, params){
                  body = await chrome.debugger.sendCommand({ tabId: source.tabId }, 'Network.getResponseBody', { requestId: params.requestId });
                  r.responseBodyRaw = body.body || ''; r.responseBodyEncoding = body.base64Encoded ? 'base64' : 'utf-8'; r.bodySize = r.encodedDataLength;
              }
-        }catch(e){ r.responseBodyRaw=''; r.responseBodyEncoding='utf-8'; }
+        }catch(e){ console.warn('Failed to get response body', e); r.responseBodyRaw=''; r.responseBodyEncoding='utf-8'; }
         broadcast('entry', { id: r.id, record: r });
       } break;
       case 'Network.loadingFailed': {
@@ -209,7 +209,7 @@ async function onEvent(source, method, params){
         r.time = (params.timestamp - (r._t0 || params.timestamp)); broadcast('entry', { id: r.id, record: r });
       } break;
     }
-  } catch(e){}
+  } catch(e){ console.error('Error in onEvent', e); }
 }
 
 function headersFrom(obj) {
