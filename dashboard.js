@@ -13,9 +13,21 @@ const selCount = $("#selCount");
 const modeCbs = Array.from(document.querySelectorAll("input.mode"));
 
 const tabs = document.querySelectorAll(".detail-tabs button");
-const tabViews = {headers: document.getElementById("tab-headers"),payload: document.getElementById("tab-payload"),preview: document.getElementById("tab-preview"),response: document.getElementById("tab-response")};
-const headersPre = $("#headersPre");const payloadPre = $("#payloadPre");const previewContainer = $("#previewContainer");const responsePre = $("#responsePre");const resBodyInfo = $("#resBodyInfo");const btnCopyResBody = $("#btnCopyResBody");const btnSaveResBody = $("#btnSaveResBody");
-const btnReplay = $("#btnReplay"); const btnEditResend = $("#btnEditResend");
+const tabViews = {
+  headers: document.getElementById("tab-headers"),
+  payload: document.getElementById("tab-payload"),
+  preview: document.getElementById("tab-preview"),
+  response: document.getElementById("tab-response")
+};
+const headersPre = $("#headersPre");
+const payloadPre = $("#payloadPre");
+const previewContainer = $("#previewContainer");
+const responsePre = $("#responsePre");
+const resBodyInfo = $("#resBodyInfo");
+const btnCopyResBody = $("#btnCopyResBody");
+const btnSaveResBody = $("#btnSaveResBody");
+const btnReplay = $("#btnReplay");
+const btnEditResend = $("#btnEditResend");
 const mobileBackBtn = $("#mobileBackBtn");
 const splitPane = $("#split");
 
@@ -25,13 +37,82 @@ mobileBackBtn && mobileBackBtn.addEventListener("click", () => {
 });
 
 // Resizer
-const divider = document.getElementById("divider");let startX = 0, startLeft = 0;divider.addEventListener("dblclick", () => setLeftPercent(42));divider.addEventListener("mousedown", (e) => {startX = e.clientX;startLeft = getLeftPercent();const move = (ev)=>{const dx = ev.clientX - startX;const pct = Math.min(80, Math.max(20, startLeft + (dx/window.innerWidth)*100));setLeftPercent(pct);};const up = ()=>{ window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };window.addEventListener("mousemove", move);window.addEventListener("mouseup", up);});function getLeftPercent(){ const s = getComputedStyle(document.documentElement).getPropertyValue('--left').trim(); return parseFloat(s.replace('%','')) || 42; }function setLeftPercent(p){ document.documentElement.style.setProperty('--left', p+'%'); }
+const divider = document.getElementById("divider");
+let startX = 0;
+let startLeft = 0;
 
-let rows = [];let current = null;let selectMode = false;let selectedIds = new Set();let currentTabId = null;
+divider.addEventListener("dblclick", () => {
+  setLeftPercent(42);
+});
 
-function humanSize(bytes){ if(bytes==null||isNaN(bytes))return "-"; const u=["B","KB","MB","GB"]; let i=0,n=Math.max(0,bytes);while(n>=1024&&i<u.length-1){n/=1024;i++;}return `${n.toFixed(1)} ${u[i]}`;}
-function pretty(obj){ try{ if(typeof obj==="string") return JSON.stringify(JSON.parse(obj),null,2); return JSON.stringify(obj,null,2);}catch{return String(obj);}}
-function nameFromUrl(u){ try{ const x=new URL(u); const p=x.pathname.split('/').filter(Boolean); return (p.pop()||x.hostname)||u; }catch{return u;} }
+divider.addEventListener("mousedown", (e) => {
+  startX = e.clientX;
+  startLeft = getLeftPercent();
+
+  const move = (ev) => {
+    const dx = ev.clientX - startX;
+    const pct = Math.min(80, Math.max(20, startLeft + (dx / window.innerWidth) * 100));
+    setLeftPercent(pct);
+  };
+
+  const up = () => {
+    window.removeEventListener("mousemove", move);
+    window.removeEventListener("mouseup", up);
+  };
+
+  window.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", up);
+});
+
+function getLeftPercent() {
+  const s = getComputedStyle(document.documentElement).getPropertyValue('--left').trim();
+  return parseFloat(s.replace('%', '')) || 42;
+}
+
+function setLeftPercent(p) {
+  document.documentElement.style.setProperty('--left', p + '%');
+}
+
+let rows = [];
+let current = null;
+let selectMode = false;
+let selectedIds = new Set();
+let currentTabId = null;
+
+function humanSize(bytes) {
+  if (bytes == null || isNaN(bytes)) {
+    return "-";
+  }
+  const u = ["B", "KB", "MB", "GB"];
+  let i = 0;
+  let n = Math.max(0, bytes);
+  while (n >= 1024 && i < u.length - 1) {
+    n /= 1024;
+    i++;
+  }
+  return `${n.toFixed(1)} ${u[i]}`;
+}
+
+function pretty(obj) {
+  try {
+    if (typeof obj === "string") {
+      return JSON.stringify(JSON.parse(obj), null, 2);
+    }
+    return JSON.stringify(obj, null, 2);
+  } catch {
+    return String(obj);
+  }
+}
+
+function nameFromUrl(u) {
+  try {
+    const x = new URL(u);
+    const p = x.pathname.split('/').filter(Boolean);
+    return (p.pop() || x.hostname) || u;
+  } catch {
+    return u;
+  }
+}
 function sanitize(s){
   let t = (s || '').replace(/[^a-z0-9._-]+/gi, '_');
   while (t.includes('..')) t = t.replace(/\.\./g, '__');
@@ -111,19 +192,43 @@ function toggleSelectMode(){
   render();
 }
 btnSelectMode.addEventListener("click", toggleSelectMode);
-btnClearSelection.addEventListener("click", () => { selectedIds.clear(); updateSelUi(); render(); });
-btnSelectAll.addEventListener("click", () => { const pred = getFilterPredicate(); for (const r of rows) if (pred(r)) selectedIds.add(r.id); updateSelUi(); render(); });
+
+btnClearSelection.addEventListener("click", () => {
+  selectedIds.clear();
+  updateSelUi();
+  render();
+});
+
+btnSelectAll.addEventListener("click", () => {
+  const pred = getFilterPredicate();
+  for (const r of rows) {
+    if (pred(r)) {
+      selectedIds.add(r.id);
+    }
+  }
+  updateSelUi();
+  render();
+});
+
 filterText.addEventListener("input", render);
 hideDataUrl.addEventListener("change", render);
-modeCbs.forEach(cb => cb.addEventListener("change", render));
+modeCbs.forEach(cb => {
+  cb.addEventListener("change", render);
+});
 
-function createRow(r){
-  const tr = document.createElement("tr"); tr.dataset.id = r.id;
+function createRow(r) {
+  const tr = document.createElement("tr");
+  tr.dataset.id = r.id;
   updateRowContent(tr, r);
-  tr.addEventListener("click", ()=> {
-    if (selectMode){
-      if (selectedIds.has(r.id)) selectedIds.delete(r.id); else selectedIds.add(r.id);
-      updateSelUi(); render();
+  tr.addEventListener("click", () => {
+    if (selectMode) {
+      if (selectedIds.has(r.id)) {
+        selectedIds.delete(r.id);
+      } else {
+        selectedIds.add(r.id);
+      }
+      updateSelUi();
+      render();
     } else {
       showDetail(r.id);
       splitPane.classList.add("mobile-detail-view");
@@ -131,25 +236,64 @@ function createRow(r){
   });
   return tr;
 }
-function updateRowContent(tr, r){
+
+function updateRowContent(tr, r) {
   tr.innerHTML = "";
-  const selTd = document.createElement("td"); selTd.className = "selcol" + (selectMode ? "" : " hidden");
-  if(selectMode) {
-      const cb = document.createElement("input"); cb.type="checkbox"; cb.checked = selectedIds.has(r.id);
-      cb.addEventListener("click", (ev)=>{ ev.stopPropagation(); if (cb.checked) selectedIds.add(r.id); else selectedIds.delete(r.id); updateSelUi(); });
-      selTd.appendChild(cb);
+  const selTd = document.createElement("td");
+  selTd.className = "selcol" + (selectMode ? "" : " hidden");
+  if (selectMode) {
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = selectedIds.has(r.id);
+    cb.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (cb.checked) {
+        selectedIds.add(r.id);
+      } else {
+        selectedIds.delete(r.id);
+      }
+      updateSelUi();
+    });
+    selTd.appendChild(cb);
   }
   tr.appendChild(selTd);
 
-  const tdUrl = document.createElement("td"); tdUrl.title = r.url; tdUrl.textContent = nameFromUrl(r.url); tr.appendChild(tdUrl);
-  const tdMethod = document.createElement("td"); tdMethod.textContent = r.method||"-"; tr.appendChild(tdMethod);
-  const tdStatus = document.createElement("td"); tdStatus.textContent = r.status||"-"; tr.appendChild(tdStatus);
-  const tdProto = document.createElement("td"); tdProto.textContent = r.protocol||"-"; tr.appendChild(tdProto);
-  const tdIP = document.createElement("td"); tdIP.textContent = r.remoteIPAddress||"-"; tr.appendChild(tdIP);
-  const tdMime = document.createElement("td"); tdMime.textContent = r.mimeType||"-"; tr.appendChild(tdMime);
-  const tdKind = document.createElement("td"); tdKind.textContent = guessKind(r); tr.appendChild(tdKind);
-  const tdSize = document.createElement("td"); tdSize.textContent = humanSize(r.bodySize); tr.appendChild(tdSize);
-  const tdTime = document.createElement("td"); tdTime.textContent = Math.round((r.time||0)*1000); tr.appendChild(tdTime);
+  const tdUrl = document.createElement("td");
+  tdUrl.title = r.url;
+  tdUrl.textContent = nameFromUrl(r.url);
+  tr.appendChild(tdUrl);
+
+  const tdMethod = document.createElement("td");
+  tdMethod.textContent = r.method || "-";
+  tr.appendChild(tdMethod);
+
+  const tdStatus = document.createElement("td");
+  tdStatus.textContent = r.status || "-";
+  tr.appendChild(tdStatus);
+
+  const tdProto = document.createElement("td");
+  tdProto.textContent = r.protocol || "-";
+  tr.appendChild(tdProto);
+
+  const tdIP = document.createElement("td");
+  tdIP.textContent = r.remoteIPAddress || "-";
+  tr.appendChild(tdIP);
+
+  const tdMime = document.createElement("td");
+  tdMime.textContent = r.mimeType || "-";
+  tr.appendChild(tdMime);
+
+  const tdKind = document.createElement("td");
+  tdKind.textContent = guessKind(r);
+  tr.appendChild(tdKind);
+
+  const tdSize = document.createElement("td");
+  tdSize.textContent = humanSize(r.bodySize);
+  tr.appendChild(tdSize);
+
+  const tdTime = document.createElement("td");
+  tdTime.textContent = Math.round((r.time || 0) * 1000);
+  tr.appendChild(tdTime);
 }
 
 window.render = render;
@@ -184,9 +328,14 @@ function upsertRow(r){
   }
 }
 
-function formatHeaders(arr){ return (arr||[]).map(h=>`${h.name}: ${h.value}`).join('\n'); }
-function showDetail(id){
-  const r = rows.find(x=>x.id===id); if (!r) return;
+function formatHeaders(arr) {
+  return (arr || []).map(h => `${h.name}: ${h.value}`).join('\n');
+}
+function showDetail(id) {
+  const r = rows.find(x => x.id === id);
+  if (!r) {
+    return;
+  }
   current = r; setActiveTab("headers");
   headersPre.textContent = [
     `URL: ${r.url}`,
@@ -221,8 +370,22 @@ function showDetail(id){
   resBodyInfo.textContent = r.responseBodyRaw ? `${r.mimeType||"unknown"} | ${r.responseBodyEncoding||"utf-8"} | ${(r.responseBodyRaw||"").length} chars` : "";
 }
 
-btnClear.addEventListener("click", async () => { rows = []; selectedIds.clear(); render(); await chrome.runtime.sendMessage({ __RRDBG: true, cmd: 'clear' }); });
-btnCopyResBody.addEventListener("click", () => { if (!current) return; navigator.clipboard.writeText(typeof current.responseBodyRaw === 'string' ? current.responseBodyRaw : String(current.responseBodyRaw)).catch(()=>{}); });
+btnClear.addEventListener("click", async () => {
+  rows = [];
+  selectedIds.clear();
+  render();
+  await chrome.runtime.sendMessage({ __RRDBG: true, cmd: 'clear' });
+});
+
+btnCopyResBody.addEventListener("click", () => {
+  if (!current) {
+    return;
+  }
+  const body = typeof current.responseBodyRaw === 'string'
+    ? current.responseBodyRaw
+    : String(current.responseBodyRaw);
+  navigator.clipboard.writeText(body).catch(() => {});
+});
 btnSaveResBody.addEventListener("click", () => {
   if (!current || !current.responseBodyRaw) return;
   const ext = guessExt(current.mimeType, current.responseBodyEncoding);
@@ -249,20 +412,51 @@ async function executeReplay(method, url, headers, body, tabId){
 }
 
 btnReplay.addEventListener("click", () => {
-  if (!current) return;
-  executeReplay(current.method, current.url, current.requestHeaders, current.requestBodyText, current.tabId);
-});
-btnEditResend.addEventListener("click", () => {
-  if (!current) return;
-  const m = prompt("Method:", current.method); if(m===null) return;
-  const u = prompt("URL:", current.url); if(u===null) return;
-  let b = current.requestBodyText;
-  if (['POST','PUT','PATCH'].includes(m.toUpperCase())) {
-    b = prompt("Body:", b); if(b===null) return;
+  if (!current) {
+    return;
   }
+  executeReplay(
+    current.method,
+    current.url,
+    current.requestHeaders,
+    current.requestBodyText,
+    current.tabId
+  );
+});
+
+btnEditResend.addEventListener("click", () => {
+  if (!current) {
+    return;
+  }
+
+  const m = prompt("Method:", current.method);
+  if (m === null) {
+    return;
+  }
+
+  const u = prompt("URL:", current.url);
+  if (u === null) {
+    return;
+  }
+
+  let b = current.requestBodyText;
+  if (['POST', 'PUT', 'PATCH'].includes(m.toUpperCase())) {
+    b = prompt("Body:", b);
+    if (b === null) {
+      return;
+    }
+  }
+
   executeReplay(m, u, current.requestHeaders, b, current.tabId);
 });
-function b64toBytes(b64){ const bin = atob(b64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i); return u8; }
+function b64toBytes(b64) {
+  const bin = atob(b64);
+  const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) {
+    u8[i] = bin.charCodeAt(i);
+  }
+  return u8;
+}
 function guessExt(mime, enc) {
   const m = (mime || '').toLowerCase();
   if (m.includes('json')) return '.json';
