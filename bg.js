@@ -217,13 +217,15 @@ function headersFrom(obj) {
     return [];
   }
 
-  const entries = Object.entries(obj);
-  const result = [];
-  for (const [name, value] of entries) {
-    result.push({
+  const keys = Object.keys(obj);
+  const len = keys.length;
+  const result = new Array(len);
+  for (let i = 0; i < len; i++) {
+    const name = keys[i];
+    result[i] = {
       name,
-      value: String(value)
-    });
+      value: String(obj[name])
+    };
   }
   return result;
 }
@@ -231,13 +233,17 @@ function headersFrom(obj) {
 function mergeHeaders(cur, add) {
   const map = new Map();
   const currentHeaders = cur || [];
-  for (const h of currentHeaders) {
+  for (let i = 0, len = currentHeaders.length; i < len; i++) {
+    const h = currentHeaders[i];
     map.set(h.name.toLowerCase(), h.value);
   }
 
-  const additionalHeaders = Object.entries(add || {});
-  for (const [name, value] of additionalHeaders) {
-    map.set(String(name).toLowerCase(), String(value));
+  if (add) {
+    const keys = Object.keys(add);
+    for (let i = 0, len = keys.length; i < len; i++) {
+      const name = keys[i];
+      map.set(String(name).toLowerCase(), String(add[name]));
+    }
   }
 
   const result = [];
